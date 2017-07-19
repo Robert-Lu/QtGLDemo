@@ -22,8 +22,12 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
         this->setFixedSize(width * zoom, height * zoom);
     }
 
+    rendering_widget = new RenderingWidget(this);
+    setCentralWidget(rendering_widget);
+
     CreateAction();
     CreateMenu();
+    CreateStatusBar();
 
     msg.log("Main Window INIT end", TRIVIAL_MSG);
 }
@@ -38,13 +42,17 @@ void QtGLDemo::Save()
     msg.log("Main Window Save()", TRIVIAL_MSG);
 }
 
+void QtGLDemo::SetStatusInfo(const QString& t)
+{
+    this->statusInfoLabel->setText(t);
+}
+
 void QtGLDemo::CreateAction()
 {
     actOpen = new QAction(tr("&Open"));
     connect(actOpen, SIGNAL(triggered()), this, SLOT(Open()));
     actSave = new QAction(tr("&Save"));
     connect(actSave, SIGNAL(triggered()), this, SLOT(Save()));
-
 }
 
 void QtGLDemo::CreateMenu()
@@ -53,4 +61,12 @@ void QtGLDemo::CreateMenu()
     fileMenu->addAction(actOpen);
     fileMenu->addAction(actSave);
     editMenu = this->menuBar()->addMenu(tr("&Edit"));
+}
+
+void QtGLDemo::CreateStatusBar()
+{
+    statusInfoLabel = new QLabel(tr("status"));
+    statusInfoLabel->setAlignment(Qt::AlignVCenter);
+    statusBar()->addWidget(statusInfoLabel);
+    connect(rendering_widget, SIGNAL(StatusInfo(const QString &)), this, SLOT(SetStatusInfo(const QString&)));
 }

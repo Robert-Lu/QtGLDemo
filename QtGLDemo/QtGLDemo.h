@@ -4,6 +4,7 @@
 // #include "ui_QtGLDemo.h"
 #include "ConsoleMessageManager.h"
 #include "TextConfigLoader.h"
+#include "RenderingWidget.h"
 
 class QtGLDemo : public QMainWindow
 {
@@ -15,6 +16,7 @@ public:
 public slots:
     void Open();
     void Save();
+    void SetStatusInfo(const QString &);
 
 private:
     //Ui::QtGLDemoClass ui;
@@ -26,9 +28,13 @@ private:
     QAction *actSave;
 
     // UI component
-    QMenu *fileMenu;
-    QMenu *editMenu;
+    QMenu   *fileMenu;
+    QMenu   *editMenu;
+    QLabel  *statusInfoLabel;
+
+    RenderingWidget *rendering_widget;
 
     void CreateAction();
     void CreateMenu();
+    void CreateStatusBar();
 };
