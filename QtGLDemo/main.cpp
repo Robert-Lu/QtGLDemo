@@ -15,13 +15,10 @@ int main(int argc, char *argv[])
     ConsoleMessageManager msg(std::cout);
     msg.enable(TRIVIAL_MSG);
 
-    msg.log("main begin.", TRIVIAL_MSG);
-
     QApplication a(argc, argv);
     a.setFont(QFont(global_font)); 
     QtGLDemo w{ msg, gui_config };
     w.show();
 
-    msg.log("main end.", TRIVIAL_MSG);
     return a.exec();
 }

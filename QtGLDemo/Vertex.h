@@ -2,6 +2,7 @@
 /// From: http://www.trentreed.net/blog/qt5-opengl-part-1-basic-rendering/ *Altered*
 
 #include <QVector3D>
+#include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 
 class Vertex
 {
@@ -11,6 +12,9 @@ public:
     Q_DECL_CONSTEXPR explicit Vertex(const QVector3D &position);
     Q_DECL_CONSTEXPR Vertex(const QVector3D &position, const QVector3D &color);
     Q_DECL_CONSTEXPR Vertex(const QVector3D &position, const QVector3D &color, const QVector3D &normal);
+    Q_DECL_CONSTEXPR Vertex(const OpenMesh::Vec3f &position, 
+        const OpenMesh::Vec3f &color,
+        const OpenMesh::Vec3f &normal);
 
     // Accessors / Mutators
     Q_DECL_CONSTEXPR const QVector3D& position() const;
@@ -47,6 +51,10 @@ Q_DECL_CONSTEXPR inline Vertex::Vertex() {}
 Q_DECL_CONSTEXPR inline Vertex::Vertex(const QVector3D &position) : m_position(position), m_color{ 1.0f, 1.0f, 1.0f } {}
 Q_DECL_CONSTEXPR inline Vertex::Vertex(const QVector3D &position, const QVector3D &color) : m_position(position), m_color(color) {}
 Q_DECL_CONSTEXPR inline Vertex::Vertex(const QVector3D &position, const QVector3D &color, const QVector3D &normal) : m_position(position), m_color(color), m_normal(normal) {}
+Q_DECL_CONSTEXPR inline Vertex::Vertex(const OpenMesh::Vec3f& position, const OpenMesh::Vec3f& color, const OpenMesh::Vec3f& normal) 
+    : m_position{ position[0], position[1], position[2] },
+    m_color{ color[0], color[1], color[2] },
+    m_normal{ normal[0], normal[1], normal[2] } {}
 
 // Accessors / Mutators
 Q_DECL_CONSTEXPR inline const QVector3D& Vertex::position() const { return m_position; }
