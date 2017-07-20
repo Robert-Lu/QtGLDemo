@@ -9,7 +9,7 @@
 
 RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
     : QOpenGLWidget(parent), msg(_msg), 
-buffer_need_update_main(true), buffer_need_update_pc(true), 
+buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 render_config{ RENDER_CONFIG_FILENAME }
 {
     // Set the focus policy to Strong,
@@ -18,9 +18,10 @@ render_config{ RENDER_CONFIG_FILENAME }
 
     //ui.setupUi(this);
     
-    camera = OpenGLCamera({ render_config.get_float("Default_Camera_X"),
-        render_config.get_float("Default_Camera_Y"),
-        render_config.get_float("Default_Camera_Z") },
+    camera = OpenGLCamera(
+        { render_config.get_float("Default_Camera_X"),
+          render_config.get_float("Default_Camera_Y"),
+          render_config.get_float("Default_Camera_Z"), },
         { 0.0f, 0.0f, 0.0f });
 
     /*
@@ -77,8 +78,8 @@ render_config{ RENDER_CONFIG_FILENAME }
 RenderingWidget::~RenderingWidget()
 {
     // Actually destroy our OpenGL information
-    vao_main.destroy();
-    buffer_main.destroy();
+    vao_mesh.destroy();
+    buffer_mesh.destroy();
     delete shader_program_basic;
 }
 
@@ -137,7 +138,7 @@ void RenderingWidget::ReadMeshFromFile()
     // extract every vertex by face-vertex circulator.
     GenerateBufferFromMesh(mesh, vertex_data_main);
 
-    buffer_need_update_main = true;
+    buffer_need_update_mesh = true;
 }
 
 void RenderingWidget::ReadPointCloudFromFile()
@@ -192,7 +193,7 @@ void RenderingWidget::ApplyUnifyForMesh()
 
     GenerateBufferFromMesh(mesh, vertex_data_main);
 
-    buffer_need_update_main = true;
+    buffer_need_update_mesh = true;
 
     emit(StatusInfo(tr("Unify on Mesh.")));
     msg.log(tr("Unify on Mesh."), INFO_MSG);
@@ -209,58 +210,12 @@ void RenderingWidget::ApplyUnifyForPointCloud()
 
     ApplyUnify(pc);
 
-    GenerateBufferFromMesh(pc, vertex_data_main);
+    GenerateBufferFromPointCloud(pc, vertex_data_pc);
 
     buffer_need_update_pc = true;
 
     emit(StatusInfo(tr("Unify on Point Cloud.")));
     msg.log(tr("Unify on Point Cloud."), INFO_MSG);
-}
-
-void RenderingWidget::ApplyUnify(TriMesh &M)
-{
-    using OpenMesh::Vec3f;
-
-    Vec3f max_pos(-INFINITY, -INFINITY, -INFINITY);
-    Vec3f min_pos(+INFINITY, +INFINITY, +INFINITY);
-
-    for (auto v : M.vertices())
-    {
-        auto point = M.point(v);
-        for (int i = 0; i < 3; i++)
-        {
-            float t = point[i];
-            if (t > max_pos[i])
-                max_pos[i] = t;
-            if (t < min_pos[i])
-                min_pos[i] = t;
-        }
-    }
-
-    float xmax = max_pos[0], ymax = max_pos[1], zmax = max_pos[2];
-    float xmin = min_pos[0], ymin = min_pos[1], zmin = min_pos[2];
-
-    float diffX = xmax - xmin;
-    float diffY = ymax - ymin;
-    float diffZ = zmax - zmin;
-    float diffMax;
-
-    if (diffX < diffY)
-        diffMax = diffY;
-    else
-        diffMax = diffX;
-    if (diffMax < diffZ)
-        diffMax = diffZ;
-
-    float scale = 1.0f / diffMax;
-    Vec3f center((xmin + xmax) / 2.f, (ymin + ymax) / 2.f, (zmin + zmax) / 2.f);
-    for (auto v : M.vertices())
-    {
-        Vec3f pt = M.point(v);
-        Vec3f res = (pt - center) * scale;
-
-        M.set_point(v, res);
-    }
 }
 
 void RenderingWidget::initializeGL()
@@ -276,25 +231,43 @@ void RenderingWidget::initializeGL()
         shader_program_basic->addShaderFromSourceFile(QOpenGLShader::Fragment, "./shader/BasicPhongFragmentShader.fragmentshader");
         shader_program_basic->link();
         shader_program_basic->bind();
+        {
+            buffer_mesh.create();
+            buffer_mesh.bind();
+            buffer_mesh.setUsagePattern(QOpenGLBuffer::StaticDraw);
+            {
+                vao_mesh.create();
+                vao_mesh.bind();
+                {
+                    shader_program_basic->enableAttributeArray(0);
+                    shader_program_basic->enableAttributeArray(1);
+                    shader_program_basic->enableAttributeArray(2);
+                    shader_program_basic->setAttributeBuffer(0, GL_FLOAT, Vertex::positionOffset(), Vertex::PositionTupleSize, Vertex::stride());
+                    shader_program_basic->setAttributeBuffer(1, GL_FLOAT, Vertex::colorOffset(), Vertex::ColorTupleSize, Vertex::stride());
+                    shader_program_basic->setAttributeBuffer(2, GL_FLOAT, Vertex::normalOffset(), Vertex::NormalTupleSize, Vertex::stride());
+                }
+                vao_mesh.release();
+            }
+            buffer_mesh.release();
 
-        // Create Buffer (Do not release until VAO is created)
-        buffer_main.create();
-        buffer_main.bind();
-        buffer_main.setUsagePattern(QOpenGLBuffer::StaticDraw);
-
-        // Create Vertex Array Object
-        vao_main.create();
-        vao_main.bind();
-        shader_program_basic->enableAttributeArray(0);
-        shader_program_basic->enableAttributeArray(1);
-        shader_program_basic->enableAttributeArray(2);
-        shader_program_basic->setAttributeBuffer(0, GL_FLOAT, Vertex::positionOffset(), Vertex::PositionTupleSize, Vertex::stride());
-        shader_program_basic->setAttributeBuffer(1, GL_FLOAT, Vertex::colorOffset(), Vertex::ColorTupleSize, Vertex::stride());
-        shader_program_basic->setAttributeBuffer(2, GL_FLOAT, Vertex::normalOffset(), Vertex::NormalTupleSize, Vertex::stride());
-
-        // Release (unbind) all
-        vao_main.release();
-        buffer_main.release();
+            buffer_pc.create();
+            buffer_pc.bind();
+            buffer_pc.setUsagePattern(QOpenGLBuffer::StaticDraw);
+            {
+                vao_pc.create();
+                vao_pc.bind();
+                {
+                    shader_program_basic->enableAttributeArray(0);
+                    shader_program_basic->enableAttributeArray(1);
+                    shader_program_basic->enableAttributeArray(2);
+                    shader_program_basic->setAttributeBuffer(0, GL_FLOAT, Vertex::positionOffset(), Vertex::PositionTupleSize, Vertex::stride());
+                    shader_program_basic->setAttributeBuffer(1, GL_FLOAT, Vertex::colorOffset(), Vertex::ColorTupleSize, Vertex::stride());
+                    shader_program_basic->setAttributeBuffer(2, GL_FLOAT, Vertex::normalOffset(), Vertex::NormalTupleSize, Vertex::stride());
+                }
+                vao_pc.release();
+            }
+            buffer_pc.release();
+        }
         shader_program_basic->release();
     }
 
@@ -314,7 +287,7 @@ void RenderingWidget::paintGL()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    glClearColor(0.0f, 0.0f, 0.5f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.375f, 1.0f);
 
     QMatrix4x4 mat_model;
 
@@ -323,34 +296,61 @@ void RenderingWidget::paintGL()
         float(this->width()) / float(this->height()),
         0.1f, 100.f);
 
-    if (buffer_need_update_main)
+    // update buffer for mesh if necessary.
+    if (buffer_need_update_mesh)
     {
-        vao_main.bind();
+        vao_mesh.bind();
         {
-            buffer_main.bind();
+            buffer_mesh.bind();
             {
-                buffer_main.allocate(vertex_data_main.data(), vertex_data_main.size() * Vertex::stride());
+                buffer_mesh.allocate(vertex_data_main.data(), vertex_data_main.size() * Vertex::stride());
             }
-            buffer_main.release();
+            buffer_mesh.release();
         }
-        vao_main.release();
+        vao_mesh.release();
 
-        buffer_need_update_main = false;
+        buffer_need_update_mesh = false;
     }
 
-    // Render using our shader
+    // update buffer for point cloud if necessary.
+    if (buffer_need_update_pc)
+    {
+        vao_pc.bind();
+        {
+            buffer_pc.bind();
+            {
+                buffer_pc.allocate(vertex_data_pc.data(), vertex_data_pc.size() * Vertex::stride());
+            }
+            buffer_pc.release();
+        }
+        vao_pc.release();
+
+        buffer_need_update_pc = false;
+    }
+
     shader_program_basic->bind();
     {
-        vao_main.bind();
+        vao_mesh.bind();
+        {
+            shader_program_basic->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
+            shader_program_basic->setUniformValue("viewPos", camera.position());
+            shader_program_basic->setUniformValue("model", mat_model);
+            shader_program_basic->setUniformValue("view", camera.view_mat());
+            shader_program_basic->setUniformValue("projection", mat_projection);
+            glDrawArrays(GL_TRIANGLES, 0, vertex_data_main.size());
+        }
+        vao_mesh.release();
 
-        shader_program_basic->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
-        shader_program_basic->setUniformValue("viewPos", camera.position());
-        shader_program_basic->setUniformValue("model", mat_model);
-        shader_program_basic->setUniformValue("view", camera.view_mat());
-        shader_program_basic->setUniformValue("projection", mat_projection);
-        glDrawArrays(GL_TRIANGLES, 0, vertex_data_main.size());
-
-        vao_main.release();
+        vao_pc.bind();
+        {
+            shader_program_basic->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
+            shader_program_basic->setUniformValue("viewPos", camera.position());
+            shader_program_basic->setUniformValue("model", mat_model);
+            shader_program_basic->setUniformValue("view", camera.view_mat());
+            shader_program_basic->setUniformValue("projection", mat_projection);
+            glDrawArrays(GL_POINTS, 0, vertex_data_pc.size());
+        }
+        vao_pc.release();
     }
     shader_program_basic->release();
 }
@@ -562,6 +562,52 @@ void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Verte
     {
         auto pos = M.point(vh);
 //        auto nor = M.normal(vh);
-        D.push_back({ pos,{ 1.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 0.0f } });
+        D.push_back({ pos,{ 1.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f } });
+    }
+}
+
+void RenderingWidget::ApplyUnify(TriMesh &M)
+{
+    using OpenMesh::Vec3f;
+
+    Vec3f max_pos(-INFINITY, -INFINITY, -INFINITY);
+    Vec3f min_pos(+INFINITY, +INFINITY, +INFINITY);
+
+    for (auto v : M.vertices())
+    {
+        auto point = M.point(v);
+        for (int i = 0; i < 3; i++)
+        {
+            float t = point[i];
+            if (t > max_pos[i])
+                max_pos[i] = t;
+            if (t < min_pos[i])
+                min_pos[i] = t;
+        }
+    }
+
+    float xmax = max_pos[0], ymax = max_pos[1], zmax = max_pos[2];
+    float xmin = min_pos[0], ymin = min_pos[1], zmin = min_pos[2];
+
+    float diffX = xmax - xmin;
+    float diffY = ymax - ymin;
+    float diffZ = zmax - zmin;
+    float diffMax;
+
+    if (diffX < diffY)
+        diffMax = diffY;
+    else
+        diffMax = diffX;
+    if (diffMax < diffZ)
+        diffMax = diffZ;
+
+    float scale = 1.0f / diffMax;
+    Vec3f center((xmin + xmax) / 2.f, (ymin + ymax) / 2.f, (zmin + zmax) / 2.f);
+    for (auto v : M.vertices())
+    {
+        Vec3f pt = M.point(v);
+        Vec3f res = (pt - center) * scale;
+
+        M.set_point(v, res);
     }
 }

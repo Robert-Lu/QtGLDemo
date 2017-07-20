@@ -52,8 +52,8 @@ private:
     TextConfigLoader render_config;
 
     // OpenGL Staff
-    QOpenGLBuffer buffer_main;
-    QOpenGLVertexArrayObject vao_main;
+    QOpenGLBuffer buffer_mesh;
+    QOpenGLVertexArrayObject vao_mesh;
     QOpenGLShaderProgram *shader_program_basic;
     QOpenGLBuffer buffer_pc;
     QOpenGLVertexArrayObject vao_pc;
@@ -68,7 +68,7 @@ private:
     std::vector<Vertex> vertex_data_pc;
 
     // Need Update Buffer
-    bool buffer_need_update_main;
+    bool buffer_need_update_mesh;
     bool buffer_need_update_pc;
 
     // UI control temp
