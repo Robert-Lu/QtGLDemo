@@ -99,6 +99,9 @@
     <ClInclude Include="QTiming.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GlobalConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="QtGLDemo.h">

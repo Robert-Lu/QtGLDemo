@@ -4,8 +4,7 @@
 
 #include <iostream>
 #include "ConsoleMessageManager.h"
-
-#define     GUI_CONFIG_FILENAME     "./config/gui.config"
+#include "GlobalConfig.h"
 
 int main(int argc, char *argv[])
 {

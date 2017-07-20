@@ -9,6 +9,7 @@
 #include "ConsoleMessageManager.h"
 #include "OpenGLCamera.h"
 #include "Vertex.h"
+#include "TextConfigLoader.h"
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
@@ -21,43 +22,61 @@ class RenderingWidget : public QOpenGLWidget,
 
 public:
     RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent = Q_NULLPTR);
-    ~RenderingWidget();
+    virtual ~RenderingWidget();
 
 signals:
     void StatusInfo(const QString &);
 
+public slots:
+    void ReadMeshFromFile();
+    void ReadPointCloudFromFile();
+    void ApplyUnifyForMesh();
+    void ApplyUnifyForPointCloud();
+
 protected:
-    void initializeGL();
-    void resizeGL(int w, int h);
-    void paintGL();
+    void initializeGL() override;
+    void resizeGL(int w, int h) override;
+    void paintGL() override;
 
-    void mousePressEvent(QMouseEvent *e);
-    void mouseMoveEvent(QMouseEvent *e);
-    void mouseReleaseEvent(QMouseEvent *e);
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
 
-    void wheelEvent(QWheelEvent *e);
+    void wheelEvent(QWheelEvent *e) override;
 
-    void keyPressEvent(QKeyEvent *e);
-    void keyReleaseEvent(QKeyEvent *e);
+    void keyPressEvent(QKeyEvent *e) override;
+    void keyReleaseEvent(QKeyEvent *e) override;
 
 private:
     ConsoleMessageManager &msg;
+    TextConfigLoader render_config;
 
     // OpenGL Staff
     QOpenGLBuffer buffer_main;
     QOpenGLVertexArrayObject vao_main;
     QOpenGLShaderProgram *shader_program_basic;
+    QOpenGLBuffer buffer_pc;
+    QOpenGLVertexArrayObject vao_pc;
 
     // Camera
     OpenGLCamera camera;
 
     // Mesh Data
     TriMesh mesh;
-    std::vector<Vertex> vertex_data;
+    TriMesh pc;
+    std::vector<Vertex> vertex_data_main;
+    std::vector<Vertex> vertex_data_pc;
 
     // Need Update Buffer
     bool buffer_need_update_main;
+    bool buffer_need_update_pc;
 
     // UI control temp
     QPoint current_position_;
+
+    // Helper Functions
+    static void TranslateCoodinate(TriMesh &);
+    static void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex> &);
+    static void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex> &);
+    static void ApplyUnify(TriMesh &);
 };

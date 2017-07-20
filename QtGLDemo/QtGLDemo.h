@@ -14,8 +14,11 @@ public:
     QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &, QWidget *parent = Q_NULLPTR);
 
 public slots:
-    void Open();
-    void Save();
+    void File_Open_Mesh();
+    void File_Open_PointCloud();
+    void File_Save();
+    void Edit_UnifyMesh();
+    void Edit_UnifyPointCloud();
     void SetStatusInfo(const QString &);
 
 private:
@@ -24,8 +27,11 @@ private:
     TextConfigLoader        &gui_config;
 
     // Actions
-    QAction *actOpen;
-    QAction *actSave;
+    QAction *actFileOpenMesh;
+    QAction *actFileOpenPointCloud;
+    QAction *actFileSave;
+    QAction *actEditUnifyMesh;
+    QAction *actEditUnifyPointCloud;
 
     // UI component
     QMenu   *fileMenu;

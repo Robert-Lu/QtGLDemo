@@ -32,14 +32,33 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
     msg.log("Main Window INIT end", TRIVIAL_MSG);
 }
 
-void QtGLDemo::Open()
-{   
-    msg.log("Main Window Open()", TRIVIAL_MSG);
+void QtGLDemo::File_Open_Mesh()
+{
+    this->rendering_widget->ReadMeshFromFile();
+    msg.log("Main Window File_Open_Mesh()", TRIVIAL_MSG);
 }
 
-void QtGLDemo::Save()
+void QtGLDemo::File_Open_PointCloud()
+{
+    this->rendering_widget->ReadPointCloudFromFile();
+    msg.log("Main Window File_Open_PointCloud()", TRIVIAL_MSG);
+}
+
+void QtGLDemo::File_Save()
 {
     msg.log("Main Window Save()", TRIVIAL_MSG);
+}
+
+void QtGLDemo::Edit_UnifyMesh()
+{
+    this->rendering_widget->ApplyUnifyForMesh();
+    msg.log("Main Window Unify()", TRIVIAL_MSG);
+}
+
+void QtGLDemo::Edit_UnifyPointCloud()
+{
+    this->rendering_widget->ApplyUnifyForPointCloud();
+    msg.log("Main Window Unify()", TRIVIAL_MSG);
 }
 
 void QtGLDemo::SetStatusInfo(const QString& t)
@@ -49,18 +68,28 @@ void QtGLDemo::SetStatusInfo(const QString& t)
 
 void QtGLDemo::CreateAction()
 {
-    actOpen = new QAction(tr("&Open"));
-    connect(actOpen, SIGNAL(triggered()), this, SLOT(Open()));
-    actSave = new QAction(tr("&Save"));
-    connect(actSave, SIGNAL(triggered()), this, SLOT(Save()));
+    actFileOpenMesh = new QAction(tr("Open &Mesh"));
+    connect(actFileOpenMesh, SIGNAL(triggered()), this, SLOT(File_Open_Mesh()));
+    actFileOpenPointCloud = new QAction(tr("Open &Point Cloud"));
+    connect(actFileOpenPointCloud, SIGNAL(triggered()), this, SLOT(File_Open_PointCloud()));
+    actFileSave = new QAction(tr("&Save"));
+    connect(actFileSave, SIGNAL(triggered()), this, SLOT(File_Save()));
+    actEditUnifyMesh = new QAction(tr("Unify &Mesh"));
+    connect(actEditUnifyMesh, SIGNAL(triggered()), this, SLOT(Edit_UnifyMesh()));
+    actEditUnifyPointCloud = new QAction(tr("Unify &Point Cloud"));
+    connect(actEditUnifyPointCloud, SIGNAL(triggered()), this, SLOT(Edit_UnifyPointCloud()));
 }
 
 void QtGLDemo::CreateMenu()
 {
     fileMenu = this->menuBar()->addMenu(tr("&File"));
-    fileMenu->addAction(actOpen);
-    fileMenu->addAction(actSave);
+    auto openMenu = fileMenu->addMenu(tr("&Open"));
+    openMenu->addAction(actFileOpenMesh);
+    openMenu->addAction(actFileOpenPointCloud);
+    fileMenu->addAction(actFileSave);
     editMenu = this->menuBar()->addMenu(tr("&Edit"));
+    editMenu->addAction(actEditUnifyMesh);
+    editMenu->addAction(actEditUnifyPointCloud);
 }
 
 void QtGLDemo::CreateStatusBar()

@@ -2,20 +2,28 @@
 #include "RenderingWidget.h"
 #include "Vertex.h"
 #include "QTiming.h"
+#include "GlobalConfig.h"
 
 #define TIC QTiming::Tic();
 #define TOC(s) msg.log(tr(s " in %0 ms.").arg(QTiming::Toc()), INFO_MSG);
 
 RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
-    : QOpenGLWidget(parent), msg(_msg), buffer_need_update_main(true)
+    : QOpenGLWidget(parent), msg(_msg), 
+buffer_need_update_main(true), buffer_need_update_pc(true), 
+render_config{ RENDER_CONFIG_FILENAME }
 {
     // Set the focus policy to Strong,
     // then the renderingWidget can accept keyboard input event and response.
     setFocusPolicy(Qt::StrongFocus);
 
     //ui.setupUi(this);
-    camera = OpenGLCamera({ 3.0f, 3.0f, 3.0f }, { 0.0f, 0.0f, 0.0f });
+    
+    camera = OpenGLCamera({ render_config.get_float("Default_Camera_X"),
+        render_config.get_float("Default_Camera_Y"),
+        render_config.get_float("Default_Camera_Z") },
+        { 0.0f, 0.0f, 0.0f });
 
+    /*
     // read mesh from stdin
     OpenMesh::IO::Options opt;
     mesh.request_vertex_normals();
@@ -40,8 +48,8 @@ RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
         mesh.update_normals();
 
         // maybe face normal has future usage.
-        ////// dispose the face normals, as we don't need them anymore
-        ////mesh_.release_face_normals();
+        //// dispose the face normals, as we don't need them anymore
+        mesh_.release_face_normals();
         TOC("Calculate Vertex Normals");
     }
     else
@@ -61,6 +69,7 @@ RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
             vertex_data.push_back({ pos, {1.0f, 1.0f, 1.0f}, nor });
         }
     }
+    */
 
     msg.log("Rendering Widget constructor end.", TRIVIAL_MSG);
 }
@@ -71,6 +80,187 @@ RenderingWidget::~RenderingWidget()
     vao_main.destroy();
     buffer_main.destroy();
     delete shader_program_basic;
+}
+
+void RenderingWidget::ReadMeshFromFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getOpenFileName(this, tr("Read Mesh"),
+            "./mesh", tr("Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::Options opt;
+    mesh.request_vertex_normals();  // require vertex normal for mesh.
+
+    TIC;
+    if (!OpenMesh::IO::read_mesh(mesh, filename.toStdString()), opt)
+    {
+        msg.log(tr("Cannot read mesh."), ERROR_MSG);
+        throw "up";
+    }
+    TOC("Read Mesh");
+
+    if (filename.contains("coodtr"))
+    {
+        msg.log(tr("Coordinate System will be translated."), INFO_MSG);
+        TranslateCoodinate(mesh);
+    }
+
+    // If the file did not provide vertex normals, then calculate them
+    if (!opt.check(OpenMesh::IO::Options::VertexNormal))
+    {
+        TIC;
+        // we need face normals to update the vertex normals
+        mesh.request_face_normals();
+
+        // let the mesh_ update the normals
+        mesh.update_normals();
+
+        // maybe face normal has future usage.
+        //// dispose the face normals, as we don't need them anymore
+        //mesh_.release_face_normals();
+        TOC("Calculate Vertex Normals");
+    }
+    else
+    {
+        msg.log(tr("File provides Vertex Normals."), INFO_MSG);
+    }
+
+    // extract every vertex by face-vertex circulator.
+    GenerateBufferFromMesh(mesh, vertex_data_main);
+
+    buffer_need_update_main = true;
+}
+
+void RenderingWidget::ReadPointCloudFromFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getOpenFileName(this, tr("Read Point Cloud"),
+            "./mesh", tr("Point Clouds (*.ply);;Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::Options opt; 
+    // do not require vertex normal for point cloud.
+
+    TIC;
+    if (!OpenMesh::IO::read_mesh(pc, filename.toStdString()), opt)
+    {
+        msg.log(tr("Cannot read point cloud."), ERROR_MSG);
+        throw "up";
+    }
+    TOC("Read Mesh");
+
+    if (filename.contains("coodtr"))
+    {
+        msg.log(tr("Coordinate System will be translated."), INFO_MSG);
+        TranslateCoodinate(pc);
+    }
+
+    // extract every vertex by vertex iterator.
+    GenerateBufferFromPointCloud(pc, vertex_data_pc);
+
+    buffer_need_update_pc = true;
+}
+
+void RenderingWidget::ApplyUnifyForMesh()
+{
+    if (mesh.vertices_empty())
+    {
+        emit(StatusInfo(tr("Unify on Empty Space.")));
+        msg.log(tr("Unify on Empty Space."), INFO_MSG);
+        return;
+    }
+
+    ApplyUnify(mesh);
+
+
+    GenerateBufferFromMesh(mesh, vertex_data_main);
+
+    buffer_need_update_main = true;
+
+    emit(StatusInfo(tr("Unify on Mesh.")));
+    msg.log(tr("Unify on Mesh."), INFO_MSG);
+}
+
+void RenderingWidget::ApplyUnifyForPointCloud()
+{
+    if (pc.vertices_empty())
+    {
+        emit(StatusInfo(tr("Unify on Empty Space.")));
+        msg.log(tr("Unify on Empty Space."), INFO_MSG);
+        return;
+    }
+
+    ApplyUnify(pc);
+
+    GenerateBufferFromMesh(pc, vertex_data_main);
+
+    buffer_need_update_pc = true;
+
+    emit(StatusInfo(tr("Unify on Point Cloud.")));
+    msg.log(tr("Unify on Point Cloud."), INFO_MSG);
+}
+
+void RenderingWidget::ApplyUnify(TriMesh &M)
+{
+    using OpenMesh::Vec3f;
+
+    Vec3f max_pos(-INFINITY, -INFINITY, -INFINITY);
+    Vec3f min_pos(+INFINITY, +INFINITY, +INFINITY);
+
+    for (auto v : M.vertices())
+    {
+        auto point = M.point(v);
+        for (int i = 0; i < 3; i++)
+        {
+            float t = point[i];
+            if (t > max_pos[i])
+                max_pos[i] = t;
+            if (t < min_pos[i])
+                min_pos[i] = t;
+        }
+    }
+
+    float xmax = max_pos[0], ymax = max_pos[1], zmax = max_pos[2];
+    float xmin = min_pos[0], ymin = min_pos[1], zmin = min_pos[2];
+
+    float diffX = xmax - xmin;
+    float diffY = ymax - ymin;
+    float diffZ = zmax - zmin;
+    float diffMax;
+
+    if (diffX < diffY)
+        diffMax = diffY;
+    else
+        diffMax = diffX;
+    if (diffMax < diffZ)
+        diffMax = diffZ;
+
+    float scale = 1.0f / diffMax;
+    Vec3f center((xmin + xmax) / 2.f, (ymin + ymax) / 2.f, (zmin + zmax) / 2.f);
+    for (auto v : M.vertices())
+    {
+        Vec3f pt = M.point(v);
+        Vec3f res = (pt - center) * scale;
+
+        M.set_point(v, res);
+    }
 }
 
 void RenderingWidget::initializeGL()
@@ -139,7 +329,7 @@ void RenderingWidget::paintGL()
         {
             buffer_main.bind();
             {
-                buffer_main.allocate(vertex_data.data(), vertex_data.size() * Vertex::stride());
+                buffer_main.allocate(vertex_data_main.data(), vertex_data_main.size() * Vertex::stride());
             }
             buffer_main.release();
         }
@@ -158,7 +348,7 @@ void RenderingWidget::paintGL()
         shader_program_basic->setUniformValue("model", mat_model);
         shader_program_basic->setUniformValue("view", camera.view_mat());
         shader_program_basic->setUniformValue("projection", mat_projection);
-        glDrawArrays(GL_TRIANGLES, 0, vertex_data.size());
+        glDrawArrays(GL_TRIANGLES, 0, vertex_data_main.size());
 
         vao_main.release();
     }
@@ -313,10 +503,13 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
     case Qt::Key_Escape:
         exit(0);
         break;
-    //case Qt::Key_R:
-    //    emit(StatusInfo(QString("reset camera")));
-    //    camera = OpenGLCamera(DEFAULT_CAMERA_POSITION, { 0, 0, 0 });
-    //    break;
+    case Qt::Key_R:
+        emit(StatusInfo(QString("reset camera")));
+        camera = OpenGLCamera({ render_config.get_float("Default_Camera_X"),
+            render_config.get_float("Default_Camera_Y"),
+            render_config.get_float("Default_Camera_Z") },
+            { 0.0f, 0.0f, 0.0f });
+        break;
     //case Qt::Key_L:
     //    emit(StatusInfo(QString("light fix switch")));
     //    light_dir_fix_ = !light_dir_fix_;
@@ -333,4 +526,42 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
 
 void RenderingWidget::keyReleaseEvent(QKeyEvent* e)
 {
+}
+
+void RenderingWidget::TranslateCoodinate(TriMesh& M)
+{
+    for (auto v : M.vertices())
+    {
+        auto point = M.point(v);
+        decltype(point) point_t{ point[2], point[0], point[1] };
+        M.set_point(v, point_t);
+    }
+}
+
+void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex>& D)
+{
+    D.clear();
+    for (auto f_it : M.faces())
+    {
+        auto fv_it = M.fv_iter(f_it);
+
+        for (; fv_it; ++fv_it)
+        {
+            auto vh = *fv_it;
+            auto pos = M.point(vh);
+            auto nor = M.normal(vh);
+            D.push_back({ pos,{ 1.0f, 1.0f, 1.0f }, nor });
+        }
+    }
+}
+
+void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Vertex>& D)
+{
+    D.clear();
+    for (auto vh : M.vertices())
+    {
+        auto pos = M.point(vh);
+//        auto nor = M.normal(vh);
+        D.push_back({ pos,{ 1.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 0.0f } });
+    }
 }
