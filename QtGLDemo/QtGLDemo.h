@@ -17,8 +17,8 @@ public slots:
     void File_Open_Mesh();
     void File_Open_PointCloud();
     void File_Save();
-    void Edit_UnifyMesh();
-    void Edit_UnifyPointCloud();
+    void Edit_Unify_Mesh();
+    void Edit_Unify_PointCloud();
     void SetStatusInfo(const QString &);
 
 private:
@@ -32,6 +32,12 @@ private:
     QAction *actFileSave;
     QAction *actEditUnifyMesh;
     QAction *actEditUnifyPointCloud;
+    QAction *actEditTranslateMeshX;
+    QAction *actEditTranslateMeshY;
+    QAction *actEditTranslateMeshZ;
+    QAction *actEditTranslatePointCloudX;
+    QAction *actEditTranslatePointCloudY;
+    QAction *actEditTranslatePointCloudZ;
 
     // UI component
     QMenu   *fileMenu;

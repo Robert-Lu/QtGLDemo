@@ -32,6 +32,9 @@ public slots:
     void ReadPointCloudFromFile();
     void ApplyUnifyForMesh();
     void ApplyUnifyForPointCloud();
+    void ApplyFlipForMesh(int i);
+    void ApplyFlipForPointCloud(int i);
+    void BuildDistanceFieldFromPointCloud();
 
 protected:
     void initializeGL() override;
@@ -50,33 +53,41 @@ protected:
 private:
     ConsoleMessageManager &msg;
     TextConfigLoader render_config;
+    TextConfigLoader algorithm_config;
 
     // OpenGL Staff
+    QOpenGLShaderProgram *shader_program_basic_light;
     QOpenGLBuffer buffer_mesh;
     QOpenGLVertexArrayObject vao_mesh;
-    QOpenGLShaderProgram *shader_program_basic;
     QOpenGLBuffer buffer_pc;
     QOpenGLVertexArrayObject vao_pc;
+    QOpenGLShaderProgram *shader_program_pure_color;
+    QOpenGLBuffer buffer_base;
+    QOpenGLVertexArrayObject vao_base;
 
     // Camera
     OpenGLCamera camera;
 
-    // Mesh Data
+    // Vertex Data
     TriMesh mesh;
     TriMesh pc;
-    std::vector<Vertex> vertex_data_main;
-    std::vector<Vertex> vertex_data_pc;
+    std::vector<Vertex3D> vertex_data_main;
+    std::vector<Vertex3D> vertex_data_pc;
+    std::vector<Vertex2D> vertex_data_base;
 
     // Need Update Buffer
     bool buffer_need_update_mesh;
     bool buffer_need_update_pc;
+    bool buffer_need_update_base;
 
     // UI control temp
     QPoint current_position_;
 
     // Helper Functions
+    static void DrawCoord(std::vector<Vertex2D> &, float len = 1.0f);
     static void TranslateCoodinate(TriMesh &);
-    static void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex> &);
-    static void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex> &);
+    static void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex3D> &);
+    static void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
+    static void ApplyFlip(TriMesh &, int i);
 };
