@@ -9,11 +9,12 @@
 
 RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
     : QOpenGLWidget(parent), msg(_msg), 
-buffer_need_update_mesh(true), buffer_need_update_pc(true), buffer_need_update_base(true),
+buffer_need_update_mesh(true), buffer_need_update_pc(true), 
+buffer_need_update_base(true), buffer_need_update_slice(true),
 render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
 {
     // Set the focus policy to Strong,
-    // then the renderingWidget can accept keyboard input event and response.
+    // then the renderingWidget can accept keyboard input event.
     setFocusPolicy(Qt::StrongFocus);
 
     //ui.setupUi(this);
@@ -23,6 +24,12 @@ render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILE
           render_config.get_float("Default_Camera_Y"),
           render_config.get_float("Default_Camera_Z"), },
         { 0.0f, 0.0f, 0.0f });
+
+    background_color = {
+        render_config.get_float("Default_Background_Color_R"),
+        render_config.get_float("Default_Background_Color_G"),
+        render_config.get_float("Default_Background_Color_B"),
+    };
 
     /*
     // read mesh from stdin
@@ -261,19 +268,24 @@ void RenderingWidget::ApplyFlipForPointCloud(int i)
     msg.log(tr("Flip %0 on Point Cloud..").arg(cood), INFO_MSG);
 }
 
+void RenderingWidget::BuildDistanceFieldFromPointCloud()
+{
+}
+
 void RenderingWidget::initializeGL()
 {
-    // Initialize OpenGL Back-end
+    // Initialize OpenGL Back-End
     initializeOpenGLFunctions();
 
-    // Application-specific initialization
-    // Create Shader (Do not release until VAO is created)
+    // Binding Shader and Buffer
+    // Basic Light Shader, use Vertex3D
     shader_program_basic_light = new QOpenGLShaderProgram();
     shader_program_basic_light->addShaderFromSourceFile(QOpenGLShader::Vertex, render_config.get_string("Main_Vertex_Shader"));
     shader_program_basic_light->addShaderFromSourceFile(QOpenGLShader::Fragment, render_config.get_string("Main_Freagment_Shader"));
     shader_program_basic_light->link();
     shader_program_basic_light->bind();
     {
+        // Buffer for Mesh, draw as GL_TRIANGLES
         buffer_mesh.create();
         buffer_mesh.bind();
         buffer_mesh.setUsagePattern(QOpenGLBuffer::StaticDraw);
@@ -292,6 +304,7 @@ void RenderingWidget::initializeGL()
         }
         buffer_mesh.release();
 
+        // Buffer for Point Cloud, draw as GL_POINTS
         buffer_pc.create();
         buffer_pc.bind();
         buffer_pc.setUsagePattern(QOpenGLBuffer::StaticDraw);
@@ -312,12 +325,14 @@ void RenderingWidget::initializeGL()
     }
     shader_program_basic_light->release();
 
+    // Pure Color Shader, use Vertex2D
     shader_program_pure_color = new QOpenGLShaderProgram();
     shader_program_pure_color->addShaderFromSourceFile(QOpenGLShader::Vertex, render_config.get_string("Pure_Color_Vertex_Shader"));
     shader_program_pure_color->addShaderFromSourceFile(QOpenGLShader::Fragment, render_config.get_string("Pure_Color_Freagment_Shader"));
     shader_program_pure_color->link();
     shader_program_pure_color->bind();
     {
+        // Buffer for Base Component, draw as GL_LINES
         buffer_base.create();
         buffer_base.bind();
         buffer_base.setUsagePattern(QOpenGLBuffer::StaticDraw);
@@ -333,6 +348,23 @@ void RenderingWidget::initializeGL()
             vao_base.release();
         }
         buffer_base.release();
+
+        // Buffer for Slicing Plane, draw as GL_TRIANGLES
+        buffer_slice.create();
+        buffer_slice.bind();
+        buffer_slice.setUsagePattern((QOpenGLBuffer::StaticDraw));
+        {
+            vao_slice.create();
+            vao_slice.bind();
+            {
+                shader_program_pure_color->enableAttributeArray(0);
+                shader_program_pure_color->enableAttributeArray(1);
+                shader_program_pure_color->setAttributeBuffer(0, GL_FLOAT, Vertex2D::positionOffset(), Vertex2D::PositionTupleSize, Vertex2D::stride());
+                shader_program_pure_color->setAttributeBuffer(1, GL_FLOAT, Vertex2D::colorOffset(), Vertex2D::ColorTupleSize, Vertex2D::stride());
+            }
+            vao_slice.release();
+        }
+        buffer_slice.release();
     }
     shader_program_basic_light->release();
 
@@ -353,7 +385,10 @@ void RenderingWidget::paintGL()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    glClearColor(0.0f, 0.0f, 0.375f, 1.0f);
+    glClearColor(background_color[0], 
+        background_color[1],
+        background_color[2],
+        1.0f);
 
     QMatrix4x4 mat_model;
 
@@ -410,6 +445,22 @@ void RenderingWidget::paintGL()
         buffer_need_update_base = false;
     }
 
+    // update buffer for slicing component if necessary.
+    if (buffer_need_update_slice)
+    {
+        vao_slice.bind();
+        {
+            buffer_slice.bind();
+            {
+                buffer_slice.allocate(vertex_data_slice.data(), vertex_data_slice.size() * Vertex2D::stride());
+            }
+            buffer_slice.release();
+        }
+        vao_slice.release();
+
+        buffer_need_update_slice = false;
+    }
+
     shader_program_basic_light->bind();
     {
         vao_mesh.bind();
@@ -446,6 +497,15 @@ void RenderingWidget::paintGL()
             glDrawArrays(GL_LINES, 0, vertex_data_base.size());
         }
         vao_base.release();
+
+        vao_slice.bind();
+        {
+            shader_program_pure_color->setUniformValue("model", mat_model);
+            shader_program_pure_color->setUniformValue("view", camera.view_mat());
+            shader_program_pure_color->setUniformValue("projection", mat_projection);
+            glDrawArrays(GL_TRIANGLES, 0, vertex_data_slice.size());
+        }
+        vao_slice.release();
     }
     shader_program_pure_color->release();
 }
@@ -653,6 +713,11 @@ void RenderingWidget::TranslateCoodinate(TriMesh& M)
 
 void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& D)
 {
+    OpenMesh::Vec3f color = { render_config.get_float("Default_Mesh_Color_R"),
+        render_config.get_float("Default_Mesh_Color_G"),
+        render_config.get_float("Default_Mesh_Color_B"),
+    };
+
     D.clear();
     for (auto f_it : M.faces())
     {
@@ -663,19 +728,24 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
             auto vh = *fv_it;
             auto pos = M.point(vh);
             auto nor = M.normal(vh);
-            D.push_back({ pos,{ 1.0f, 1.0f, 1.0f }, nor });
+            D.push_back({ pos, color, nor });
         }
     }
 }
 
 void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Vertex3D>& D)
 {
+    OpenMesh::Vec3f color = { render_config.get_float("Default_Point_Cloud_Color_R"),
+        render_config.get_float("Default_Point_Cloud_Color_G"),
+        render_config.get_float("Default_Point_Cloud_Color_B"),
+    };
+
     D.clear();
     for (auto vh : M.vertices())
     {
         auto pos = M.point(vh);
 //        auto nor = M.normal(vh);
-        D.push_back({ pos,{ 1.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f } });
+        D.push_back({ pos, color, { 0.0f, 0.0f, 1.0f } });
     }
 }
 

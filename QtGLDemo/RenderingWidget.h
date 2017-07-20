@@ -61,12 +61,12 @@ private:
     QOpenGLVertexArrayObject vao_mesh;
     QOpenGLBuffer buffer_pc;
     QOpenGLVertexArrayObject vao_pc;
+
     QOpenGLShaderProgram *shader_program_pure_color;
     QOpenGLBuffer buffer_base;
     QOpenGLVertexArrayObject vao_base;
-
-    // Camera
-    OpenGLCamera camera;
+    QOpenGLBuffer buffer_slice;
+    QOpenGLVertexArrayObject vao_slice;
 
     // Vertex Data
     TriMesh mesh;
@@ -74,11 +74,19 @@ private:
     std::vector<Vertex3D> vertex_data_main;
     std::vector<Vertex3D> vertex_data_pc;
     std::vector<Vertex2D> vertex_data_base;
+    std::vector<Vertex2D> vertex_data_slice;
 
     // Need Update Buffer
     bool buffer_need_update_mesh;
     bool buffer_need_update_pc;
     bool buffer_need_update_base;
+    bool buffer_need_update_slice;
+
+    // Camera
+    OpenGLCamera camera;
+
+    // Background Color
+    OpenMesh::Vec3f background_color;
 
     // UI control temp
     QPoint current_position_;
@@ -86,8 +94,8 @@ private:
     // Helper Functions
     static void DrawCoord(std::vector<Vertex2D> &, float len = 1.0f);
     static void TranslateCoodinate(TriMesh &);
-    static void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex3D> &);
-    static void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
+    void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex3D> &);
+    void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
     static void ApplyFlip(TriMesh &, int i);
 };
