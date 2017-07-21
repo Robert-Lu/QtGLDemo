@@ -7,8 +7,11 @@
 #define TIC QTiming::Tic();
 #define TOC(s) msg.log(tr(s " in %0 ms.").arg(QTiming::Toc()), INFO_MSG);
 
+#define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
+#define BOUND(x, l, h) ((x) > (h) ? (h) : (x) < (l) ? (l) : (x))
+
 RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
-    : QOpenGLWidget(parent), msg(_msg), 
+    : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), dis_field(nullptr),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
 render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
@@ -29,6 +32,18 @@ render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILE
         render_config.get_float("Default_Background_Color_R"),
         render_config.get_float("Default_Background_Color_G"),
         render_config.get_float("Default_Background_Color_B"),
+    };
+
+    mesh_color = {
+        render_config.get_float("Default_Mesh_Color_R"),
+        render_config.get_float("Default_Mesh_Color_G"),
+        render_config.get_float("Default_Mesh_Color_B"),
+    };
+
+    point_clout_color = {
+        render_config.get_float("Default_Point_Cloud_Color_R"),
+        render_config.get_float("Default_Point_Cloud_Color_G"),
+        render_config.get_float("Default_Point_Cloud_Color_B"),
     };
 
     /*
@@ -145,7 +160,7 @@ void RenderingWidget::ReadMeshFromFile()
     }
 
     // extract every vertex by face-vertex circulator.
-    GenerateBufferFromMesh(mesh, vertex_data_main);
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 }
@@ -185,7 +200,27 @@ void RenderingWidget::ReadPointCloudFromFile()
     // extract every vertex by vertex iterator.
     GenerateBufferFromPointCloud(pc, vertex_data_pc);
 
+    msg.log(tr("Point Count: %0.").arg(pc.n_vertices()), INFO_MSG);
+
     buffer_need_update_pc = true;
+}
+
+void RenderingWidget::SavePointCloudToFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getSaveFileName(this, tr("Save Point Cloud"),
+            "./mesh", tr("Point Clouds (*.ply);;Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Save to file Canceled.")));
+        msg.log(tr("Save to file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::write_mesh(pc, filename.toStdString());
 }
 
 void RenderingWidget::ApplyUnifyForMesh()
@@ -199,7 +234,7 @@ void RenderingWidget::ApplyUnifyForMesh()
 
     ApplyUnify(mesh);
 
-    GenerateBufferFromMesh(mesh, vertex_data_main);
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -237,7 +272,7 @@ void RenderingWidget::ApplyFlipForMesh(int i)
 
     ApplyFlip(mesh, i);
 
-    GenerateBufferFromMesh(mesh, vertex_data_main);
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -264,12 +299,202 @@ void RenderingWidget::ApplyFlipForPointCloud(int i)
 
     char cood = i == 0 ? 'X' : i == 1 ? 'Y' : 'Z';
 
-    emit(StatusInfo(tr("Flip %0 on Point Cloud..").arg(cood)));
-    msg.log(tr("Flip %0 on Point Cloud..").arg(cood), INFO_MSG);
+    emit(StatusInfo(tr("Flip %0 on Point Cloud.").arg(cood)));
+    msg.log(tr("Flip %0 on Point Cloud.").arg(cood), INFO_MSG);
 }
 
 void RenderingWidget::BuildDistanceFieldFromPointCloud()
 {
+    if (pc.vertices_empty())
+    {
+        emit(StatusInfo(tr("Build Distance Field Empty Space.")));
+        msg.log(tr("Build Distance Field Empty Space."), INFO_MSG);
+        return;
+    }
+
+    // Build kdTree
+    pts.clear();
+    for (auto vh : pc.vertices())
+    {
+        auto x = pc.point(vh)[0];
+        auto y = pc.point(vh)[1];
+        auto z = pc.point(vh)[2];
+        pts.push_back({ x, y, z });
+    }
+
+    kdtree = new kdt::kdTree(pts);
+
+
+    OpenMesh::Vec3f min_pos = {
+        algorithm_config.get_float("Domain_Min_X"),
+        algorithm_config.get_float("Domain_Min_Y"),
+        algorithm_config.get_float("Domain_Min_Z"),
+    };
+
+    OpenMesh::Vec3f max_pos = {
+        algorithm_config.get_float("Domain_Max_X"),
+        algorithm_config.get_float("Domain_Max_Y"),
+        algorithm_config.get_float("Domain_Max_Z"),
+    };
+
+    // the max time for octree to expand(split).
+    int max_div = algorithm_config.get_int("Max_Division_OcTree");
+
+    dis_field = new OcTreeField(min_pos, max_pos, kdtree, pts, max_div);
+
+    auto stat = dis_field->stat();
+    msg.log("Build Distance Field on OcTree.", INFO_MSG);
+    msg.indent_more();
+    msg.log(tr("Minimum size of grid: %0.").arg(stat.min_size), TRIVIAL_MSG);
+    msg.log(tr("Total number of OcTree nodes: %0.").arg(stat.grid_cnt), TRIVIAL_MSG);
+    msg.indent_more();
+    int d = 0;
+    for (auto num : stat.depth_cnt)
+    {
+        msg.log(tr("Number of nodes with depth %0: %1.").arg(d++).arg(num), TRIVIAL_MSG);
+    }
+    msg.reset_indent();
+
+    UpdateSlicingPlane();
+    buffer_need_update_slice = true;
+}
+
+void RenderingWidget::ChangeColorBackground()
+{
+    QColor color = QColorDialog::getColor(Qt::white, this, tr("background color"));
+    if (!color.isValid())
+        return;
+
+    GLfloat r = (color.red()) / 255.0f;
+    GLfloat g = (color.green()) / 255.0f;
+    GLfloat b = (color.blue()) / 255.0f;
+    background_color = { r, g, b };
+
+    buffer_need_update_base = true;
+    update();
+}
+
+void RenderingWidget::ChangeColorMesh()
+{
+    QColor color = QColorDialog::getColor(Qt::white, this, tr("background color"));
+    if (!color.isValid())
+        return;
+
+    GLfloat r = (color.red()) / 255.0f;
+    GLfloat g = (color.green()) / 255.0f;
+    GLfloat b = (color.blue()) / 255.0f;
+    mesh_color = { r, g, b };
+
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    buffer_need_update_mesh = true;
+    update();
+}
+
+void RenderingWidget::ChangeColorPointCloud()
+{
+    QColor color = QColorDialog::getColor(Qt::white, this, tr("background color"));
+    if (!color.isValid())
+        return;
+
+    GLfloat r = (color.red()) / 255.0f;
+    GLfloat g = (color.green()) / 255.0f;
+    GLfloat b = (color.blue()) / 255.0f;
+    point_clout_color = { r, g, b };
+
+    GenerateBufferFromPointCloud(pc, vertex_data_pc);
+    buffer_need_update_pc = true;
+    update();
+}
+
+void RenderingWidget::SyncConfigBundle(ConfigBundle &c)
+{
+    config_bundle = c;
+    UpdateSlicingPlane();
+}
+
+void RenderingWidget::UpdateSlicingPlane()
+{
+    vertex_data_slice.clear();
+    
+    if (config_bundle.slice_config.use_slice)
+    {
+        int idmain, idr, idc;
+        if (config_bundle.slice_config.slice_x)
+        {
+            idmain = 0;
+            idr = 1;
+            idc = 2;
+        }
+        else if (config_bundle.slice_config.slice_y)
+        {
+            idmain = 1;
+            idr = 0;
+            idc = 2;
+        }
+        else
+        {
+            idmain = 2;
+            idr = 0;
+            idc = 1;
+        }
+
+        OpenMesh::Vec3f min_pos = {
+            algorithm_config.get_float("Domain_Min_X"),
+            algorithm_config.get_float("Domain_Min_Y"),
+            algorithm_config.get_float("Domain_Min_Z"),
+        };
+
+        OpenMesh::Vec3f max_pos = {
+            algorithm_config.get_float("Domain_Max_X"),
+            algorithm_config.get_float("Domain_Max_Y"),
+            algorithm_config.get_float("Domain_Max_Z"),
+        };
+
+        float grid_step = algorithm_config.get_float("Grid_Size");
+
+        OpenMesh::Vec3f color{ 1.0f, 0.7f, 0.7f };
+        float rr, cc;
+        for (float r = min_pos[idr]; r < max_pos[idr]; r += grid_step)
+        {
+            rr = r + grid_step;
+            for (float c = min_pos[idc]; c < max_pos[idc]; c += grid_step)
+            {
+                cc = c + grid_step;
+                OpenMesh::Vec3f posll, poslh, poshl, poshh;
+                posll[idmain] = slicing_position;
+                posll[idr] = r;
+                posll[idc] = c;
+                poslh[idmain] = slicing_position;
+                poslh[idr] = r;
+                poslh[idc] = cc;
+                poshl[idmain] = slicing_position;
+                poshl[idr] = rr;
+                poshl[idc] = c;
+                poshh[idmain] = slicing_position;
+                poshh[idr] = rr;
+                poshh[idc] = cc;
+
+                if (kdtree != nullptr)
+                {
+                    auto mid = (posll + poshh) / 2.0f;
+                    kdt::kdPoint p{ mid[0], mid[1], mid[2] };
+                    auto idx = kdtree->nnSearch(p);
+                    auto pos = pc.point(pc.vertex_handle(idx));
+                    auto dis = NORM3(pos, p);
+                    color[0] = BOUND(1.0 - powf(dis, 0.25f), 0.0f, 1.0f);
+                }
+
+                vertex_data_slice.push_back({ posll , color });
+                vertex_data_slice.push_back({ poslh , color });
+                vertex_data_slice.push_back({ poshl , color });
+                vertex_data_slice.push_back({ poshh , color });
+                vertex_data_slice.push_back({ poslh , color });
+                vertex_data_slice.push_back({ poshl , color });
+            }
+        }
+    }
+
+    buffer_need_update_slice = true;
 }
 
 void RenderingWidget::initializeGL()
@@ -404,7 +629,7 @@ void RenderingWidget::paintGL()
         {
             buffer_mesh.bind();
             {
-                buffer_mesh.allocate(vertex_data_main.data(), vertex_data_main.size() * Vertex3D::stride());
+                buffer_mesh.allocate(vertex_data_mesh.data(), vertex_data_mesh.size() * Vertex3D::stride());
             }
             buffer_mesh.release();
         }
@@ -470,7 +695,7 @@ void RenderingWidget::paintGL()
             shader_program_basic_light->setUniformValue("model", mat_model);
             shader_program_basic_light->setUniformValue("view", camera.view_mat());
             shader_program_basic_light->setUniformValue("projection", mat_projection);
-            glDrawArrays(GL_TRIANGLES, 0, vertex_data_main.size());
+            glDrawArrays(GL_TRIANGLES, 0, vertex_data_mesh.size());
         }
         vao_mesh.release();
 
@@ -487,10 +712,13 @@ void RenderingWidget::paintGL()
     }
     shader_program_basic_light->release();
 
+    glDisable(GL_CULL_FACE);
+
     shader_program_pure_color->bind();
     {
         vao_base.bind();
         {
+            shader_program_pure_color->setUniformValue("alpha", 1.0f);
             shader_program_pure_color->setUniformValue("model", mat_model);
             shader_program_pure_color->setUniformValue("view", camera.view_mat());
             shader_program_pure_color->setUniformValue("projection", mat_projection);
@@ -498,8 +726,13 @@ void RenderingWidget::paintGL()
         }
         vao_base.release();
 
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
         vao_slice.bind();
         {
+            auto alpha = render_config.get_float("Slicing_Plane_Alpha");
+            shader_program_pure_color->setUniformValue("alpha", alpha);
             shader_program_pure_color->setUniformValue("model", mat_model);
             shader_program_pure_color->setUniformValue("view", camera.view_mat());
             shader_program_pure_color->setUniformValue("projection", mat_projection);
@@ -512,19 +745,22 @@ void RenderingWidget::paintGL()
 
 void RenderingWidget::mousePressEvent(QMouseEvent* e)
 {
-    switch (e->button())
-    {
-    case Qt::LeftButton:
-        //ptr_arcball_->MouseDown(e->pos());
-        current_position_ = e->pos();
-        setCursor(Qt::ClosedHandCursor);
-        break;
-    case Qt::MidButton:
-        current_position_ = e->pos();
-        break;
-    default:
-        break;
-    }
+    setCursor(Qt::ClosedHandCursor);
+    current_position_ = e->pos();
+
+    //switch (e->button())
+    //{
+    //case Qt::LeftButton:
+    //    //ptr_arcball_->MouseDown(e->pos());
+    //    current_position_ = e->pos();
+    //    setCursor(Qt::ClosedHandCursor);
+    //    break;
+    //case Qt::MidButton:
+    //    current_position_ = e->pos();
+    //    break;
+    //default:
+    //    break;
+    //}
 
     update();
 }
@@ -540,7 +776,6 @@ void RenderingWidget::mouseMoveEvent(QMouseEvent* e)
     switch (e->buttons())
     {
     case Qt::LeftButton:
-        //ptr_arcball_->MouseMove(e->pos());
         if (has_alt)
         {
             camera.move_right_target(-4.0*GLfloat(e->x() - current_position_.x()) / GLfloat(width()) * multiplier);
@@ -551,32 +786,27 @@ void RenderingWidget::mouseMoveEvent(QMouseEvent* e)
             camera.move_around_right(-180.0*GLfloat(e->x() - current_position_.x()) / GLfloat(width()) * multiplier);
             camera.move_around_up(+180.0*GLfloat(e->y() - current_position_.y()) / GLfloat(height()) * multiplier);
         }
-        current_position_ = e->pos();
         break;
     case Qt::MidButton:
         camera.move_right_target(-4.0*GLfloat(e->x() - current_position_.x()) / GLfloat(width()) * multiplier);
         camera.move_up_target(+4.0*GLfloat(e->y() - current_position_.y()) / GLfloat(height()) * multiplier);
-        current_position_ = e->pos();
         break;
+    case Qt::RightButton:
+        slicing_position += (-2.5*GLfloat(e->x() - current_position_.x()) / GLfloat(width())) * multiplier;
+        slicing_position += (+2.5*GLfloat(e->y() - current_position_.y()) / GLfloat(width())) * multiplier;
+        UpdateSlicingPlane();
     default:
         break;
     }
+
+    current_position_ = e->pos();
     update();
 }
 
 void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
 {
-    switch (e->button())
-    {
-    case Qt::LeftButton:
-        setCursor(Qt::ArrowCursor);
-        break;
-
-    case Qt::RightButton:
-        break;
-    default:
-        break;
-    }
+    setCursor(Qt::ArrowCursor);
+    current_position_ = e->pos();
 }
 
 void RenderingWidget::wheelEvent(QWheelEvent* e)
@@ -595,6 +825,7 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
 {
     bool has_shift = e->modifiers() & Qt::ShiftModifier;
     bool has_ctrl = e->modifiers() & Qt::ControlModifier;
+    bool has_alt = e->modifiers() & Qt::AltModifier;
     float multiplier = 1.0;
     multiplier *= has_shift ? 0.25f : 1.0f;
     multiplier *= has_ctrl ? 3.0f : 1.0f;
@@ -647,13 +878,29 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         break;
     case Qt::Key_Equal:
     case Qt::Key_Plus:
-        emit(StatusInfo(QString("move front")));
-        camera.move_back(-dis);
+        if (has_alt)
+        {
+            emit(StatusInfo(QString("target move front")));
+            camera.move_back_target(-dis);
+        }
+        else
+        {
+            emit(StatusInfo(QString("camera move front")));
+            camera.move_back(-dis);
+        }
         break;
     case Qt::Key_Minus:
     case Qt::Key_Underscore:
-        emit(StatusInfo(QString("move back ")));
-        camera.move_back(+dis);
+        if (has_alt)
+        {
+            emit(StatusInfo(QString("target move back ")));
+            camera.move_back_target(+dis);
+        }
+        else
+        {
+            emit(StatusInfo(QString("camera move back ")));
+            camera.move_back(+dis);
+        }
         break;
     case Qt::Key_Escape:
         exit(0);
@@ -713,10 +960,7 @@ void RenderingWidget::TranslateCoodinate(TriMesh& M)
 
 void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& D)
 {
-    OpenMesh::Vec3f color = { render_config.get_float("Default_Mesh_Color_R"),
-        render_config.get_float("Default_Mesh_Color_G"),
-        render_config.get_float("Default_Mesh_Color_B"),
-    };
+    OpenMesh::Vec3f color = mesh_color;
 
     D.clear();
     for (auto f_it : M.faces())
@@ -735,10 +979,7 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
 
 void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Vertex3D>& D)
 {
-    OpenMesh::Vec3f color = { render_config.get_float("Default_Point_Cloud_Color_R"),
-        render_config.get_float("Default_Point_Cloud_Color_G"),
-        render_config.get_float("Default_Point_Cloud_Color_B"),
-    };
+    OpenMesh::Vec3f color = point_clout_color;
 
     D.clear();
     for (auto vh : M.vertices())

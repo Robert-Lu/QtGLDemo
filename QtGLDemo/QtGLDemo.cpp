@@ -29,6 +29,7 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
     CreateMenu();
     CreateStatusBar();
 
+    this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
     msg.log("Main Window INIT end", TRIVIAL_MSG);
 }
 
@@ -46,6 +47,7 @@ void QtGLDemo::File_Open_PointCloud()
 
 void QtGLDemo::File_Save()
 {
+    this->rendering_widget->SavePointCloudToFile();
     msg.log("Main Window Save()", TRIVIAL_MSG);
 }
 
@@ -68,6 +70,7 @@ void QtGLDemo::SetStatusInfo(const QString& t)
 
 void QtGLDemo::CreateAction()
 {
+    // File
     actFileOpenMesh = new QAction(tr("&Mesh"));
     connect(actFileOpenMesh, SIGNAL(triggered()), this, SLOT(File_Open_Mesh()));
 
@@ -77,6 +80,7 @@ void QtGLDemo::CreateAction()
     actFileSave = new QAction(tr("&Save"));
     connect(actFileSave, SIGNAL(triggered()), this, SLOT(File_Save()));
 
+    // Edit
     actEditUnifyMesh = new QAction(tr("&Mesh"));
     connect(actEditUnifyMesh, SIGNAL(triggered()), this, SLOT(Edit_Unify_Mesh()));
 
@@ -111,6 +115,61 @@ void QtGLDemo::CreateAction()
     actEditTranslatePointCloudZ = new QAction(tr("flap &Z"));
     connect(actEditTranslatePointCloudZ, &QAction::triggered, this, [this]() {
         this->rendering_widget->ApplyFlipForPointCloud(2);
+    });
+
+    actEditBuildDistanceField = new QAction(tr("&Build Dis Field"));
+    connect(actEditBuildDistanceField, &QAction::triggered, this, [this]() {
+        this->rendering_widget->BuildDistanceFieldFromPointCloud();
+    });
+
+    // View
+    actViewChangeColorBackground = new QAction(tr("&Background"));
+    connect(actViewChangeColorBackground, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ChangeColorBackground();
+    }); 
+
+    actViewChangeColorMesh = new QAction(tr("&Mesh"));
+    connect(actViewChangeColorMesh, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ChangeColorMesh();
+    }); 
+
+    actViewChangeColorPointCloud = new QAction(tr("&Point Cloud"));
+    connect(actViewChangeColorPointCloud, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ChangeColorPointCloud();
+    });
+    
+    // TODO
+    actViewSwitchEnableSlicing = new QAction(tr("Enable &Slicing"));
+    actViewSwitchEnableSlicing->setCheckable(true);
+    actViewSwitchEnableSlicing->setChecked(false);
+    actViewCheckSlicingDirectionX = new QAction(tr("&X"));
+    actViewCheckSlicingDirectionX->setCheckable(true);
+    actViewCheckSlicingDirectionX->setChecked(true);
+    actViewCheckSlicingDirectionY = new QAction(tr("&Y"));
+    actViewCheckSlicingDirectionY->setCheckable(true);
+    actViewCheckSlicingDirectionZ = new QAction(tr("&Z"));
+    actViewCheckSlicingDirectionZ->setCheckable(true);
+    actViewCheckSlicingDirectionGroup = new QActionGroup(this);
+    actViewCheckSlicingDirectionGroup->setExclusive(true);
+    actViewCheckSlicingDirectionGroup->setEnabled(false);
+    actViewCheckSlicingDirectionGroup->addAction(actViewCheckSlicingDirectionX);
+    actViewCheckSlicingDirectionGroup->addAction(actViewCheckSlicingDirectionY);
+    actViewCheckSlicingDirectionGroup->addAction(actViewCheckSlicingDirectionZ);
+
+    connect(actViewCheckSlicingDirectionX, &QAction::changed, this, [this]() {
+        this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
+    });
+    connect(actViewCheckSlicingDirectionY, &QAction::changed, this, [this]() {
+        this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
+    });
+    connect(actViewCheckSlicingDirectionZ, &QAction::changed, this, [this]() {
+        this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
+    });
+
+    connect(actViewSwitchEnableSlicing, &QAction::changed, this, [this]() {
+        bool checked = this->actViewSwitchEnableSlicing->isChecked();
+        this->actViewCheckSlicingDirectionGroup->setEnabled(checked);
+        this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
     });
 }
 
@@ -149,6 +208,27 @@ void QtGLDemo::CreateMenu()
     flipPointCloudMenu->addAction(actEditTranslatePointCloudX);
     flipPointCloudMenu->addAction(actEditTranslatePointCloudY);
     flipPointCloudMenu->addAction(actEditTranslatePointCloudZ);
+    // Edit/Build Dis Field
+    editMenu->addAction(actEditBuildDistanceField);
+
+    // View
+    viewMenu = this->menuBar()->addMenu(tr("&View"));
+    // View/Change Color
+    auto changeColorMenu = viewMenu->addMenu(tr("Change &Color"));
+    changeColorMenu->addAction(actViewChangeColorBackground);
+    changeColorMenu->addAction(actViewChangeColorMesh);
+    changeColorMenu->addAction(actViewChangeColorPointCloud);
+    // View/===
+    viewMenu->addSeparator();
+    // View/Slice
+    auto sliceMenu = viewMenu->addMenu(tr("Set &Slicing"));
+    sliceMenu->addAction(actViewSwitchEnableSlicing);
+    sliceMenu->addSeparator();
+    sliceMenu->addAction(actViewCheckSlicingDirectionX);
+    sliceMenu->addAction(actViewCheckSlicingDirectionY);
+    sliceMenu->addAction(actViewCheckSlicingDirectionZ);
+    //auto sliceMenu = viewMenu->addMenu(tr("&Slice"));
+    
 }
 
 void QtGLDemo::CreateStatusBar()
@@ -157,4 +237,15 @@ void QtGLDemo::CreateStatusBar()
     statusInfoLabel->setAlignment(Qt::AlignVCenter);
     statusBar()->addWidget(statusInfoLabel);
     connect(rendering_widget, SIGNAL(StatusInfo(const QString &)), this, SLOT(SetStatusInfo(const QString&)));
+}
+
+ConfigBundle QtGLDemo::ExtractConfigBundle()
+{
+    ConfigBundle cb;
+    cb.slice_config.use_slice = actViewSwitchEnableSlicing->isChecked();
+    cb.slice_config.slice_x = actViewCheckSlicingDirectionX->isChecked();
+    cb.slice_config.slice_y = actViewCheckSlicingDirectionY->isChecked();
+    cb.slice_config.slice_z = actViewCheckSlicingDirectionZ->isChecked();
+
+    return cb;
 }

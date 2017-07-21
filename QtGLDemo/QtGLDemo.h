@@ -30,18 +30,35 @@ private:
     QAction *actFileOpenMesh;
     QAction *actFileOpenPointCloud;
     QAction *actFileSave;
+
     QAction *actEditUnifyMesh;
     QAction *actEditUnifyPointCloud;
+
     QAction *actEditTranslateMeshX;
     QAction *actEditTranslateMeshY;
     QAction *actEditTranslateMeshZ;
+
     QAction *actEditTranslatePointCloudX;
     QAction *actEditTranslatePointCloudY;
     QAction *actEditTranslatePointCloudZ;
 
+    QAction *actEditBuildDistanceField;
+
+    QAction *actViewChangeColorBackground;
+    QAction *actViewChangeColorMesh;
+    QAction *actViewChangeColorPointCloud;
+
+    QAction *actViewSwitchEnableSlicing;
+    QAction *actViewCheckSlicingDirectionX;
+    QAction *actViewCheckSlicingDirectionY;
+    QAction *actViewCheckSlicingDirectionZ;
+    QActionGroup *actViewCheckSlicingDirectionGroup;
+
     // UI component
     QMenu   *fileMenu;
     QMenu   *editMenu;
+    QMenu   *viewMenu;
+
     QLabel  *statusInfoLabel;
 
     RenderingWidget *rendering_widget;
@@ -49,4 +66,5 @@ private:
     void CreateAction();
     void CreateMenu();
     void CreateStatusBar();
+    ConfigBundle ExtractConfigBundle();
 };

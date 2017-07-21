@@ -10,10 +10,34 @@
 #include "OpenGLCamera.h"
 #include "Vertex.h"
 #include "TextConfigLoader.h"
+#include "kdTreeSolution.h"
+#include "OcTreeFieldSolution.h"
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
+
+struct ConfigBundle
+{
+    struct SliceConfig
+    {
+        bool use_slice;
+        bool slice_x;
+        bool slice_y;
+        bool slice_z;
+    } slice_config;
+
+    struct RenderConfig
+    {
+        bool cull_face;
+        bool draw_face;
+        struct Material
+        {
+            GLfloat ambient;
+            GLfloat specular;
+        } material;
+    } render_config;
+};
 
 class RenderingWidget : public QOpenGLWidget,
                         protected QOpenGLFunctions
@@ -30,11 +54,17 @@ signals:
 public slots:
     void ReadMeshFromFile();
     void ReadPointCloudFromFile();
+    void SavePointCloudToFile();
     void ApplyUnifyForMesh();
     void ApplyUnifyForPointCloud();
     void ApplyFlipForMesh(int i);
     void ApplyFlipForPointCloud(int i);
     void BuildDistanceFieldFromPointCloud();
+    void ChangeColorBackground();
+    void ChangeColorMesh();
+    void ChangeColorPointCloud();
+    void SyncConfigBundle(ConfigBundle &);
+    void UpdateSlicingPlane();
 
 protected:
     void initializeGL() override;
@@ -54,6 +84,7 @@ private:
     ConsoleMessageManager &msg;
     TextConfigLoader render_config;
     TextConfigLoader algorithm_config;
+    ConfigBundle config_bundle;
 
     // OpenGL Staff
     QOpenGLShaderProgram *shader_program_basic_light;
@@ -68,10 +99,19 @@ private:
     QOpenGLBuffer buffer_slice;
     QOpenGLVertexArrayObject vao_slice;
 
+    // kdTree
+    kdt::kdTree *kdtree;
+    std::vector<kdt::kdPoint> pts;
+
+    // Distance Field 
+    //std::vector<std::vector<std::vector<float>>> dis_field;
+    OcTreeField *dis_field;
+    
+
     // Vertex Data
     TriMesh mesh;
     TriMesh pc;
-    std::vector<Vertex3D> vertex_data_main;
+    std::vector<Vertex3D> vertex_data_mesh;
     std::vector<Vertex3D> vertex_data_pc;
     std::vector<Vertex2D> vertex_data_base;
     std::vector<Vertex2D> vertex_data_slice;
@@ -85,8 +125,13 @@ private:
     // Camera
     OpenGLCamera camera;
 
+    // Slicing Position
+    float slicing_position;
+
     // Background Color
     OpenMesh::Vec3f background_color;
+    OpenMesh::Vec3f mesh_color;
+    OpenMesh::Vec3f point_clout_color;
 
     // UI control temp
     QPoint current_position_;
