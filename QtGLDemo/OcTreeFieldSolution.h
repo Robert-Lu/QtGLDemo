@@ -33,7 +33,7 @@ public:
         kdt::kdTree* kdt, const std::vector<kdt::kdPoint> &_pts, 
             int _max_div = 8);
     ~OcTreeField();
-    OcNode operator[] (OpenMesh::Vec3f);
+    OcNode find(OpenMesh::Vec3f);
 
     struct StatBundle
     {
@@ -73,7 +73,7 @@ inline OcTreeField::~OcTreeField()
 {
 }
 
-inline OcNode OcTreeField::operator[](OpenMesh::Vec3f pos)
+inline OcNode OcTreeField::find(OpenMesh::Vec3f pos)
 {
     return _find(tree, pos);
 }
@@ -137,4 +137,31 @@ inline void OcTreeField::_expand(OcNode* root, int limit)
         for (int i = 0; i < 8; i++)
             _expand(root->children[i], limit - 1);
     }
+}
+
+inline OcNode OcTreeField::_find(OcNode* root, OpenMesh::Vec3f pos)
+{
+    if (root->children == nullptr)
+    {
+        return *root;
+    }
+
+    auto x = pos[0];
+    auto y = pos[1];
+    auto z = pos[2];
+
+    auto mid_pos = (root->max_pos + root->min_pos) / 2;
+    auto mx = mid_pos[0];
+    auto my = mid_pos[1];
+    auto mz = mid_pos[2];
+
+    int index = 0;
+    if (z < mz)
+        index += 4;
+    if (y < my)
+        index += 2;
+    if (x < mx)
+        index += 1;
+
+    return _find(root->children[index], pos);
 }

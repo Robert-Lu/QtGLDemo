@@ -450,16 +450,18 @@ void RenderingWidget::UpdateSlicingPlane()
             algorithm_config.get_float("Domain_Max_Z"),
         };
 
-        float grid_step = algorithm_config.get_float("Grid_Size");
+        int max_div = algorithm_config.get_int("Max_Division_OcTree");
+        float grid_step_r = (max_pos[idr] - min_pos[idr]) / powf(2.0, max_div);
+        float grid_step_c = (max_pos[idc] - min_pos[idc]) / powf(2.0, max_div);
 
         OpenMesh::Vec3f color{ 1.0f, 0.7f, 0.7f };
         float rr, cc;
-        for (float r = min_pos[idr]; r < max_pos[idr]; r += grid_step)
+        for (float r = min_pos[idr]; r < max_pos[idr]; r += grid_step_r)
         {
-            rr = r + grid_step;
-            for (float c = min_pos[idc]; c < max_pos[idc]; c += grid_step)
+            rr = r + grid_step_r;
+            for (float c = min_pos[idc]; c < max_pos[idc]; c += grid_step_c)
             {
-                cc = c + grid_step;
+                cc = c + grid_step_c;
                 OpenMesh::Vec3f posll, poslh, poshl, poshh;
                 posll[idmain] = slicing_position;
                 posll[idr] = r;
@@ -474,14 +476,19 @@ void RenderingWidget::UpdateSlicingPlane()
                 poshh[idr] = rr;
                 poshh[idc] = cc;
 
-                if (kdtree != nullptr)
+                if (dis_field != nullptr)
                 {
                     auto mid = (posll + poshh) / 2.0f;
-                    kdt::kdPoint p{ mid[0], mid[1], mid[2] };
-                    auto idx = kdtree->nnSearch(p);
-                    auto pos = pc.point(pc.vertex_handle(idx));
-                    auto dis = NORM3(pos, p);
-                    color[0] = BOUND(1.0 - powf(dis, 0.25f), 0.0f, 1.0f);
+                    //auto node1 = dis_field->find({0,0,0});
+                    //std::cout << node1.value;
+
+                    auto node = dis_field->find(mid);
+                    auto dis = node.value;
+                    auto color_phase = BOUND(powf(dis, 0.5f), 0.0f, 0.5f);
+                    QColor qcolor = QColor::fromHsvF(color_phase, 1.0f, 1.0f);
+                    color[0] = qcolor.redF();
+                    color[1] = qcolor.greenF();
+                    color[2] = qcolor.blueF();
                 }
 
                 vertex_data_slice.push_back({ posll , color });
