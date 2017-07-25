@@ -5,7 +5,11 @@
 #include "GlobalConfig.h"
 
 #define TIC QTiming::Tic();
-#define TOC(s) msg.log(tr(s " in %0 ms.").arg(QTiming::Toc()), INFO_MSG);
+#define TOC(s) {\
+    QString prompt = tr(s " in %0 ms.").arg(QTiming::Toc());\
+    msg.log(prompt, INFO_MSG);\
+    emit(StatusInfo(prompt));\
+}
 
 #define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
 #define BOUND(x, l, h) ((x) > (h) ? (h) : (x) < (l) ? (l) : (x))
@@ -14,7 +18,8 @@ RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
     : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), dis_field(nullptr),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
-render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
+render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME },
+render_show_face(true), render_cull_face(true)
 {
     // Set the focus policy to Strong,
     // then the renderingWidget can accept keyboard input event.
@@ -163,6 +168,11 @@ void RenderingWidget::ReadMeshFromFile()
     GenerateBufferFromMesh(mesh, vertex_data_mesh);
 
     buffer_need_update_mesh = true;
+    if (ss != nullptr)
+    {
+        delete ss;
+        ss = nullptr;
+    }
 }
 
 void RenderingWidget::ReadPointCloudFromFile()
@@ -205,6 +215,81 @@ void RenderingWidget::ReadPointCloudFromFile()
     buffer_need_update_pc = true;
 }
 
+void RenderingWidget::ReadDistanceFieldFromFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getOpenFileName(this, tr("Open Distance Field (as OcTree)"),
+            "./mesh", tr("OcTree Field (*.octree)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    if (dis_field != nullptr)
+    {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Test", 
+            "Distance Field already exist, confirm to overwrite?",
+            QMessageBox::Yes | QMessageBox::No);
+        if (reply == QMessageBox::No)
+        {
+            emit(StatusInfo(tr("Read from file Canceled.")));
+            msg.log(tr("Read from file Canceled."), INFO_MSG);
+            return;
+        }
+    }
+
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        emit(StatusInfo(tr("Read from file Failed.")));
+        msg.log(tr("Read from file Failed."), INFO_MSG);
+        return;
+    }
+
+    TIC;
+    QDataStream in(&file);
+    dis_field = new OcTreeField(in);
+    file.close();
+    TOC("Read Distance Field from file");
+
+    auto stat = dis_field->stat();
+    msg.log("Build Distance Field on OcTree.", INFO_MSG);
+    msg.indent_more();
+    msg.log(tr("Minimum size of grid: %0.").arg(stat.min_size), TRIVIAL_MSG);
+    msg.log(tr("Total number of OcTree nodes: %0.").arg(stat.grid_cnt), TRIVIAL_MSG);
+    msg.indent_more();
+    int d = 0;
+    for (auto num : stat.depth_cnt)
+    {
+        msg.log(tr("Number of nodes with depth %0: %1.").arg(d++).arg(num), TRIVIAL_MSG);
+    }
+    msg.reset_indent();
+}
+
+void RenderingWidget::SaveMeshToFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getSaveFileName(this, tr("Save Mesh"),
+            "./mesh", tr("Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Save to file Canceled.")));
+        msg.log(tr("Save to file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::write_mesh(mesh, filename.toStdString());
+}
+
 void RenderingWidget::SavePointCloudToFile()
 {
     // get file name.
@@ -221,6 +306,42 @@ void RenderingWidget::SavePointCloudToFile()
     }
 
     OpenMesh::IO::write_mesh(pc, filename.toStdString());
+}
+
+void RenderingWidget::SaveDistanceFieldToFile()
+{    
+    // get file name.
+    QString filename = QFileDialog::
+        getSaveFileName(this, tr("Save Distance Field (as OcTree)"),
+            "./mesh", tr("OcTree Field (*.octree)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Save to file Canceled.")));
+        msg.log(tr("Save to file Canceled."), INFO_MSG);
+        return;
+    }
+    if (dis_field == nullptr)
+    {
+        emit(StatusInfo(tr("Dis Field is Empty.")));
+        msg.log(tr("Dis Field is Empty."), INFO_MSG);
+        return;
+    }
+
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly))
+    {
+        emit(StatusInfo(tr("Save to file Failed.")));
+        msg.log(tr("Save to file Failed."), INFO_MSG);
+        return;
+    }
+
+    TIC;
+    QDataStream out(&file);
+    dis_field->save_to_file(out);
+    file.close();
+    TOC("Save Distance Field to file");
 }
 
 void RenderingWidget::ApplyUnifyForMesh()
@@ -312,6 +433,7 @@ void RenderingWidget::BuildDistanceFieldFromPointCloud()
         return;
     }
 
+    TIC;
     // Build kdTree
     pts.clear();
     for (auto vh : pc.vertices())
@@ -323,7 +445,6 @@ void RenderingWidget::BuildDistanceFieldFromPointCloud()
     }
 
     kdtree = new kdt::kdTree(pts);
-
 
     OpenMesh::Vec3f min_pos = {
         algorithm_config.get_float("Domain_Min_X"),
@@ -340,7 +461,12 @@ void RenderingWidget::BuildDistanceFieldFromPointCloud()
     // the max time for octree to expand(split).
     int max_div = algorithm_config.get_int("Max_Division_OcTree");
 
-    dis_field = new OcTreeField(min_pos, max_pos, kdtree, pts, max_div);
+    if (dis_field != nullptr)
+    {
+        delete dis_field;
+        dis_field = nullptr;
+    }
+    dis_field = new OcTreeField(min_pos, max_pos, kdtree, &pts, max_div);
 
     auto stat = dis_field->stat();
     msg.log("Build Distance Field on OcTree.", INFO_MSG);
@@ -354,6 +480,7 @@ void RenderingWidget::BuildDistanceFieldFromPointCloud()
         msg.log(tr("Number of nodes with depth %0: %1.").arg(d++).arg(num), TRIVIAL_MSG);
     }
     msg.reset_indent();
+    TOC("Build Distance Field from Point Cloud");
 
     UpdateSlicingPlane();
     buffer_need_update_slice = true;
@@ -412,10 +539,10 @@ void RenderingWidget::SyncConfigBundle(ConfigBundle &c)
     UpdateSlicingPlane();
 }
 
-void RenderingWidget::UpdateSlicingPlane()
+void RenderingWidget::UpdateSlicingPlane(int max_div_set)
 {
     vertex_data_slice.clear();
-    
+
     if (config_bundle.slice_config.use_slice)
     {
         int idmain, idr, idc;
@@ -449,59 +576,144 @@ void RenderingWidget::UpdateSlicingPlane()
             algorithm_config.get_float("Domain_Max_Y"),
             algorithm_config.get_float("Domain_Max_Z"),
         };
+        OpenMesh::Vec3f color{ 0.6f, 0.7f, 0.9f };
 
-        int max_div = algorithm_config.get_int("Max_Division_OcTree");
-        float grid_step_r = (max_pos[idr] - min_pos[idr]) / powf(2.0, max_div);
-        float grid_step_c = (max_pos[idc] - min_pos[idc]) / powf(2.0, max_div);
-
-        OpenMesh::Vec3f color{ 1.0f, 0.7f, 0.7f };
-        float rr, cc;
-        for (float r = min_pos[idr]; r < max_pos[idr]; r += grid_step_r)
+        if (dis_field == nullptr)
         {
-            rr = r + grid_step_r;
-            for (float c = min_pos[idc]; c < max_pos[idc]; c += grid_step_c)
+            OpenMesh::Vec3f posll, poslh, poshl, poshh;
+            posll[idmain] = slicing_position;
+            posll[idr] = min_pos[idr];
+            posll[idc] = min_pos[idc];
+            poslh[idmain] = slicing_position;
+            poslh[idr] = min_pos[idr];
+            poslh[idc] = max_pos[idc];
+            poshl[idmain] = slicing_position;
+            poshl[idr] = max_pos[idr];
+            poshl[idc] = min_pos[idc];
+            poshh[idmain] = slicing_position;
+            poshh[idr] = max_pos[idr];
+            poshh[idc] = max_pos[idc];
+            vertex_data_slice.push_back({ posll , color });
+            vertex_data_slice.push_back({ poslh , color });
+            vertex_data_slice.push_back({ poshl , color });
+            vertex_data_slice.push_back({ poshh , color });
+            vertex_data_slice.push_back({ poslh , color });
+            vertex_data_slice.push_back({ poshl , color });
+        }
+        else
+        {
+            int max_div;
+            bool use_mid = false;
+            if (max_div_set == 0)
+                max_div = render_config.get_int("Max_Plane_Division");
+            else
             {
-                cc = c + grid_step_c;
-                OpenMesh::Vec3f posll, poslh, poshl, poshh;
-                posll[idmain] = slicing_position;
-                posll[idr] = r;
-                posll[idc] = c;
-                poslh[idmain] = slicing_position;
-                poslh[idr] = r;
-                poslh[idc] = cc;
-                poshl[idmain] = slicing_position;
-                poshl[idr] = rr;
-                poshl[idc] = c;
-                poshh[idmain] = slicing_position;
-                poshh[idr] = rr;
-                poshh[idc] = cc;
+                max_div = max_div_set;
+                use_mid = true;
+            }
+            float grid_step_r = (max_pos[idr] - min_pos[idr]) / powf(2.0, max_div);
+            float grid_step_c = (max_pos[idc] - min_pos[idc]) / powf(2.0, max_div);
 
-                if (dis_field != nullptr)
+            OpenMesh::Vec3f color{ 1.0f, 0.7f, 0.7f };
+            float rr, cc;
+            for (float r = min_pos[idr]; r < max_pos[idr]; r += grid_step_r)
+            {
+                rr = r + grid_step_r;
+                for (float c = min_pos[idc]; c < max_pos[idc]; c += grid_step_c)
                 {
-                    auto mid = (posll + poshh) / 2.0f;
-                    //auto node1 = dis_field->find({0,0,0});
-                    //std::cout << node1.value;
+                    cc = c + grid_step_c;
+                    OpenMesh::Vec3f posll, poslh, poshl, poshh;
+                    OpenMesh::Vec3f colorll, colorlh, colorhl, colorhh;
+                    posll[idmain] = slicing_position;
+                    posll[idr] = r;
+                    posll[idc] = c;
+                    poslh[idmain] = slicing_position;
+                    poslh[idr] = r;
+                    poslh[idc] = cc;
+                    poshl[idmain] = slicing_position;
+                    poshl[idr] = rr;
+                    poshl[idc] = c;
+                    poshh[idmain] = slicing_position;
+                    poshh[idr] = rr;
+                    poshh[idc] = cc;
 
-                    auto node = dis_field->find(mid);
-                    auto dis = node.value;
-                    auto color_phase = BOUND(powf(dis, 0.5f), 0.0f, 0.5f);
-                    QColor qcolor = QColor::fromHsvF(color_phase, 1.0f, 1.0f);
-                    color[0] = qcolor.redF();
-                    color[1] = qcolor.greenF();
-                    color[2] = qcolor.blueF();
+                    if (dis_field != nullptr)
+                    {
+                        QColor qcolor;
+
+                        if (!use_mid)
+                        {
+                            auto nodell = dis_field->find(posll);
+                            auto disll = nodell.value;
+                            auto color_phasell = BOUND(powf(disll, 0.5f), 0.0f, 0.5f);
+                            qcolor = QColor::fromHsvF(color_phasell, 1.0f, 1.0f);
+                            colorll[0] = qcolor.redF();
+                            colorll[1] = qcolor.greenF();
+                            colorll[2] = qcolor.blueF();
+
+                            auto nodelh = dis_field->find(poslh);
+                            auto dislh = nodelh.value;
+                            auto color_phaselh = BOUND(powf(dislh, 0.5f), 0.0f, 0.5f);
+                            qcolor = QColor::fromHsvF(color_phaselh, 1.0f, 1.0f);
+                            colorlh[0] = qcolor.redF();
+                            colorlh[1] = qcolor.greenF();
+                            colorlh[2] = qcolor.blueF();
+
+                            auto nodehl = dis_field->find(poshl);
+                            auto dishl = nodehl.value;
+                            auto color_phasehl = BOUND(powf(dishl, 0.5f), 0.0f, 0.5f);
+                            qcolor = QColor::fromHsvF(color_phasehl, 1.0f, 1.0f);
+                            colorhl[0] = qcolor.redF();
+                            colorhl[1] = qcolor.greenF();
+                            colorhl[2] = qcolor.blueF();
+
+                            auto nodehh = dis_field->find(poshh);
+                            auto dishh = nodehh.value;
+                            auto color_phasehh = BOUND(powf(dishh, 0.5f), 0.0f, 0.5f);
+                            qcolor = QColor::fromHsvF(color_phasehh, 1.0f, 1.0f);
+                            colorhh[0] = qcolor.redF();
+                            colorhh[1] = qcolor.greenF();
+                            colorhh[2] = qcolor.blueF();
+                        }
+                        else
+                        {
+                            auto mid_pos = (posll + poshh) / 2;
+                            auto node = dis_field->find(mid_pos);
+                            auto dis = node.value;
+                            auto color_phase = BOUND(powf(dis, 0.5f), 0.0f, 0.5f);
+                            qcolor = QColor::fromHsvF(color_phase, 1.0f, 1.0f);
+                            colorll[0] = qcolor.redF();
+                            colorll[1] = qcolor.greenF();
+                            colorll[2] = qcolor.blueF();
+                            colorlh[0] = qcolor.redF();
+                            colorlh[1] = qcolor.greenF();
+                            colorlh[2] = qcolor.blueF();
+                            colorhl[0] = qcolor.redF();
+                            colorhl[1] = qcolor.greenF();
+                            colorhl[2] = qcolor.blueF();
+                            colorhh[0] = qcolor.redF();
+                            colorhh[1] = qcolor.greenF();
+                            colorhh[2] = qcolor.blueF();
+                        }
+                    }
+
+                    vertex_data_slice.push_back({ posll , colorll });
+                    vertex_data_slice.push_back({ poslh , colorlh });
+                    vertex_data_slice.push_back({ poshl , colorhl });
+                    vertex_data_slice.push_back({ poshh , colorhh });
+                    vertex_data_slice.push_back({ poslh , colorlh });
+                    vertex_data_slice.push_back({ poshl , colorhl });
                 }
-
-                vertex_data_slice.push_back({ posll , color });
-                vertex_data_slice.push_back({ poslh , color });
-                vertex_data_slice.push_back({ poshl , color });
-                vertex_data_slice.push_back({ poshh , color });
-                vertex_data_slice.push_back({ poslh , color });
-                vertex_data_slice.push_back({ poshl , color });
             }
         }
     }
 
     buffer_need_update_slice = true;
+}
+
+void RenderingWidget::UpdateSurface(int iter) // default = 1
+{
+
 }
 
 void RenderingWidget::initializeGL()
@@ -616,11 +828,20 @@ void RenderingWidget::paintGL()
     // Clear
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
     glClearColor(background_color[0], 
         background_color[1],
         background_color[2],
         1.0f);
+
+    // Wire-frame mode.
+    // Any subsequent drawing calls will render the triangles in
+    // wire-frame mode until we set it back to its default using
+    // `glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)`.
+    if (!render_show_face)
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+    if (render_cull_face)
+        glEnable(GL_CULL_FACE);
 
     QMatrix4x4 mat_model;
 
@@ -748,6 +969,19 @@ void RenderingWidget::paintGL()
         vao_slice.release();
     }
     shader_program_pure_color->release();
+    
+    // END OF GL
+
+    // Restore Polygon Mode to ensure the correctness of native painter
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glDisable(GL_CULL_FACE | GL_DEPTH_TEST);
+
+    // Native Painter work.
+    QPainter painter(this);
+    painter.setPen(Qt::white);
+    /*painter.drawText(this->width() / 15, this->height() / 15,
+        "test QPainter.");*/
+    painter.end();
 }
 
 void RenderingWidget::mousePressEvent(QMouseEvent* e)
@@ -919,10 +1153,14 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             render_config.get_float("Default_Camera_Z") },
             { 0.0f, 0.0f, 0.0f });
         break;
-    //case Qt::Key_L:
-    //    emit(StatusInfo(QString("light fix switch")));
-    //    light_dir_fix_ = !light_dir_fix_;
-    //    break;
+    case Qt::Key_F:
+        render_show_face = !render_show_face;
+        emit(StatusInfo(QString("render_show_face set to %0").arg(render_show_face)));
+        break;
+    case Qt::Key_C:
+        render_cull_face = !render_cull_face;
+        emit(StatusInfo(QString("render_cull_face set to %0").arg(render_cull_face)));
+        break;
 
     default:
         emit(StatusInfo(QString("pressed ") + e->text() +

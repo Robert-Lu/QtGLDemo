@@ -19,21 +19,21 @@ struct OcNode
     // children
     OcNode **children;
 
+    OcNode() = default;
     OcNode(OpenMesh::Vec3f &min, OpenMesh::Vec3f &max, float s)
-        : min_pos(min), max_pos(max), size(s), children(nullptr)
-    {
-
-    }
+        : min_pos(min), max_pos(max), size(s), children(nullptr) { }
 };
 
 class OcTreeField
 {
 public:
     OcTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos, 
-        kdt::kdTree* kdt, const std::vector<kdt::kdPoint> &_pts, 
+        kdt::kdTree* kdt, std::vector<kdt::kdPoint> *_pts, 
             int _max_div = 8);
+    OcTreeField(QDataStream &in);
     ~OcTreeField();
     OcNode find(OpenMesh::Vec3f);
+    bool save_to_file(QDataStream &out);
 
     struct StatBundle
     {
@@ -45,18 +45,21 @@ public:
 
     OcNode *tree;
     kdt::kdTree *kdtree;
-    const std::vector<kdt::kdPoint> &pts;
+    std::vector<kdt::kdPoint> *pts;
     int max_div;
     // stats
 
 private:
     void _expand(OcNode *root, int limit);
     OcNode _find(OcNode *root, OpenMesh::Vec3f pos);
+    OcNode *_rebuild(QDataStream& in);
+    void _save(QDataStream& out, OcNode *root);
+
 };
 
 /* header only implementation */
 
-inline OcTreeField::OcTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos, kdt::kdTree* kdt, const std::vector<kdt::kdPoint> &_pts, int _max_div)
+inline OcTreeField::OcTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos, kdt::kdTree* kdt, std::vector<kdt::kdPoint> *_pts, int _max_div)
     : max_div(_max_div), kdtree(kdt), pts(_pts)
 {
     float size = NORM3(max_pos, min_pos);
@@ -69,6 +72,51 @@ inline OcTreeField::OcTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos
     _expand(tree, _max_div);
 }
 
+inline OcNode *OcTreeField::_rebuild(QDataStream& in)
+{
+    OcNode *root = new OcNode();
+    in >> root->min_pos[0] >> root->min_pos[1] >> root->min_pos[2];
+    in >> root->max_pos[0] >> root->max_pos[1] >> root->max_pos[2];
+    in >> root->size;
+    in >> root->value;
+    in >> root->dir[0] >> root->dir[1] >> root->dir[2];
+
+    bool has_children;
+    in >> has_children;
+    if (has_children)
+    {
+        root->children = new OcNode*[8];
+        for (int i = 0; i < 8; i++)
+        {
+            root->children[i] = _rebuild(in);
+        }
+    }
+
+    return root;
+}
+
+inline OcTreeField::OcTreeField(QDataStream& in)
+{
+    // rebuild stat
+    qint32 temp;
+    in >> temp;
+    stat_bundle.grid_cnt = temp;
+    // (float)
+    in >> stat_bundle.min_size;
+    int size;
+    in >> temp;
+    size = temp;
+    stat_bundle.depth_cnt = std::vector<int>(size, 0);
+    for (int i = 0; i < size; i++)
+    {
+        in >> temp;
+        stat_bundle.depth_cnt[i] = temp;
+    }
+
+    // rebuild main
+    tree = _rebuild(in);
+}
+
 inline OcTreeField::~OcTreeField()
 {
 }
@@ -76,6 +124,41 @@ inline OcTreeField::~OcTreeField()
 inline OcNode OcTreeField::find(OpenMesh::Vec3f pos)
 {
     return _find(tree, pos);
+}
+
+inline void OcTreeField::_save(QDataStream& out, OcNode *root)
+{
+    out << root->min_pos[0] << root->min_pos[1] << root->min_pos[2];
+    out << root->max_pos[0] << root->max_pos[1] << root->max_pos[2];
+    out << root->size;
+    out << root->value;
+    out << root->dir[0] << root->dir[1] << root->dir[2];
+    bool has_children = (root->children != nullptr);
+    out << has_children;
+    if (has_children)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            _save(out, root->children[i]);
+        }
+    }
+}
+
+inline bool OcTreeField::save_to_file(QDataStream& out)
+{
+    if (tree == nullptr)
+        return false;
+
+    // save stat
+    out << (qint32)stat_bundle.grid_cnt;
+    out << stat_bundle.min_size;
+    out << (qint32)stat_bundle.depth_cnt.size();
+    for (int i = 0; i < stat_bundle.depth_cnt.size(); i++)
+        out << (qint32)stat_bundle.depth_cnt[i];
+
+    // save main
+    _save(out, tree);
+    return true;
 }
 
 inline void OcTreeField::_expand(OcNode* root, int limit)
@@ -86,7 +169,7 @@ inline void OcTreeField::_expand(OcNode* root, int limit)
 
     kdt::kdPoint p{ SPVEC3(mid_pos) };
     auto idx = kdtree->nnSearch(p);
-    auto pos = pts[idx];
+    auto pos = (*pts)[idx];
     auto dis = NORM3(pos, p);
 
     root->value = dis;

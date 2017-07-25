@@ -29,7 +29,10 @@ private:
     // Actions
     QAction *actFileOpenMesh;
     QAction *actFileOpenPointCloud;
-    QAction *actFileSave;
+    QAction *actFileOpenDistanceField;
+    QAction *actFileSaveMesh;
+    QAction *actFileSavePointCloud;
+    QAction *actFileSaveDistanceField;
 
     QAction *actEditUnifyMesh;
     QAction *actEditUnifyPointCloud;
@@ -53,6 +56,7 @@ private:
     QAction *actViewCheckSlicingDirectionY;
     QAction *actViewCheckSlicingDirectionZ;
     QActionGroup *actViewCheckSlicingDirectionGroup;
+    QAction *actViewSwitchSlicingMaxDivision;
 
     // UI component
     QMenu   *fileMenu;

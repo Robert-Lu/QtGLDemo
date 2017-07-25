@@ -12,6 +12,7 @@
 #include "TextConfigLoader.h"
 #include "kdTreeSolution.h"
 #include "OcTreeFieldSolution.h"
+#include "SurfaceSolution.h"
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
@@ -54,7 +55,10 @@ signals:
 public slots:
     void ReadMeshFromFile();
     void ReadPointCloudFromFile();
+    void ReadDistanceFieldFromFile();
+    void SaveMeshToFile();
     void SavePointCloudToFile();
+    void SaveDistanceFieldToFile();
     void ApplyUnifyForMesh();
     void ApplyUnifyForPointCloud();
     void ApplyFlipForMesh(int i);
@@ -64,7 +68,8 @@ public slots:
     void ChangeColorMesh();
     void ChangeColorPointCloud();
     void SyncConfigBundle(ConfigBundle &);
-    void UpdateSlicingPlane();
+    void UpdateSlicingPlane(int max_div = 0);
+    void UpdateSurface(int iter = 1);
 
 protected:
     void initializeGL() override;
@@ -81,10 +86,15 @@ protected:
     void keyReleaseEvent(QKeyEvent *e) override;
 
 private:
+    // utility
     ConsoleMessageManager &msg;
     TextConfigLoader render_config;
     TextConfigLoader algorithm_config;
     ConfigBundle config_bundle;
+    
+    // Render
+    bool render_show_face;
+    bool render_cull_face;
 
     // OpenGL Staff
     QOpenGLShaderProgram *shader_program_basic_light;
@@ -107,6 +117,8 @@ private:
     //std::vector<std::vector<std::vector<float>>> dis_field;
     OcTreeField *dis_field;
     
+    // Surface Solution
+    SurfaceSolution *ss;
 
     // Vertex Data
     TriMesh mesh;

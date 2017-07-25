@@ -77,8 +77,23 @@ void QtGLDemo::CreateAction()
     actFileOpenPointCloud = new QAction(tr("&Point Cloud"));
     connect(actFileOpenPointCloud, SIGNAL(triggered()), this, SLOT(File_Open_PointCloud()));
 
-    actFileSave = new QAction(tr("&Save"));
-    connect(actFileSave, SIGNAL(triggered()), this, SLOT(File_Save()));
+    actFileOpenDistanceField = new QAction(tr("Distance Field"));
+    connect(actFileOpenDistanceField, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ReadDistanceFieldFromFile();
+    });
+
+    actFileSaveMesh = new QAction(tr("&Mesh"));
+    connect(actFileSaveMesh, SIGNAL(triggered()), this, SLOT(File_Save()));
+
+    actFileSavePointCloud = new QAction(tr("&Point Cloud"));
+    connect(actFileSavePointCloud, &QAction::triggered, this, [this]() {
+        this->rendering_widget->SaveMeshToFile();
+    });
+
+    actFileSaveDistanceField = new QAction(tr("&Distance Field"));
+    connect(actFileSaveDistanceField, &QAction::triggered, this, [this]() {
+        this->rendering_widget->SaveDistanceFieldToFile();
+    });
 
     // Edit
     actEditUnifyMesh = new QAction(tr("&Mesh"));
@@ -138,7 +153,6 @@ void QtGLDemo::CreateAction()
         this->rendering_widget->ChangeColorPointCloud();
     });
     
-    // TODO
     actViewSwitchEnableSlicing = new QAction(tr("Enable &Slicing"));
     actViewSwitchEnableSlicing->setCheckable(true);
     actViewSwitchEnableSlicing->setChecked(false);
@@ -171,6 +185,15 @@ void QtGLDemo::CreateAction()
         this->actViewCheckSlicingDirectionGroup->setEnabled(checked);
         this->rendering_widget->SyncConfigBundle(ExtractConfigBundle());
     });
+
+    actViewSwitchSlicingMaxDivision = new QAction(tr("&Max Division"));
+    connect(actViewSwitchSlicingMaxDivision, &QAction::triggered, this, [this]() {
+        bool ok;
+        int i = QInputDialog::getInt(this, tr("QInputDialog::getInteger()"),
+            tr("Max Division:"), 10, 0, 15, 1, &ok);
+        if (ok)
+            this->rendering_widget->UpdateSlicingPlane(i);
+    });
 }
 
 void QtGLDemo::CreateMenu()
@@ -183,8 +206,16 @@ void QtGLDemo::CreateMenu()
     openMenu->addAction(actFileOpenMesh);
     // File/Open/Point Cloud
     openMenu->addAction(actFileOpenPointCloud);
+    // File/Open/Distance Field
+    openMenu->addAction(actFileOpenDistanceField);
     // File/Save
-    fileMenu->addAction(actFileSave);
+    auto saveMenu = fileMenu->addMenu(tr("&Save"));
+    // File/Save/Mesh
+    saveMenu->addAction(actFileSaveMesh);
+    // File/Save/Point Cloud
+    saveMenu->addAction(actFileSavePointCloud);
+    // File/Save/Distance Field
+    saveMenu->addAction(actFileSaveDistanceField);
 
     // Edit
     editMenu = this->menuBar()->addMenu(tr("&Edit"));
@@ -227,6 +258,8 @@ void QtGLDemo::CreateMenu()
     sliceMenu->addAction(actViewCheckSlicingDirectionX);
     sliceMenu->addAction(actViewCheckSlicingDirectionY);
     sliceMenu->addAction(actViewCheckSlicingDirectionZ);
+    sliceMenu->addSeparator();
+    sliceMenu->addAction(actViewSwitchSlicingMaxDivision);
     //auto sliceMenu = viewMenu->addMenu(tr("&Slice"));
     
 }

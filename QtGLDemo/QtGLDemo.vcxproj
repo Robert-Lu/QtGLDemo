@@ -71,7 +71,7 @@
       <OutputFile>$(OutDir)\$(ProjectName).exe</OutputFile>
       <AdditionalLibraryDirectories>$(QTDIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>Debug</GenerateDebugInformation>
-      <AdditionalDependencies>qtmain.lib;Qt5Core.lib;Qt5Gui.lib;Qt5Widgets.lib;OpenMeshCore.lib;OpenMeshTools.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>qtmain.lib;Qt5Core.lib;Qt5Gui.lib;Qt5Widgets.lib;OpenMeshCore.lib;OpenMeshTools.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
     </Link>
@@ -103,6 +103,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="SurfaceSolution.cpp" />
     <ClCompile Include="TextConfigLoader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -114,6 +115,7 @@
     <ClInclude Include="OcTreeFieldSolution.h" />
     <ClInclude Include="OpenGLCamera.h" />
     <ClInclude Include="QTiming.h" />
+    <ClInclude Include="SurfaceSolution.h" />
     <ClInclude Include="Vertex.h" />
     <CustomBuild Include="RenderingWidget.h">
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(QTDIR)\bin\moc.exe;%(FullPath)</AdditionalInputs>
