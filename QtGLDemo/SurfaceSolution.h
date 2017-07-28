@@ -5,15 +5,21 @@
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
-typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
-typedef OpenMesh::Vec3f     Vec3f;
+#include <OpenMesh/Core/System/config.h>
+#include <OpenMesh/Core/Mesh/Status.hh>
+using TriMesh = OpenMesh::TriMesh_ArrayKernelT<>;
+using VertexHandle = TriMesh::VertexHandle;
+using FaceHandle = TriMesh::FaceHandle;
+using HalfEdgeHandle = TriMesh::HalfedgeHandle;
+using Point = TriMesh::Point;
+using OpenMesh::Vec3f;
 
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
-typedef Eigen::SparseMatrix<float>  SpMat;
-typedef Eigen::MatrixXf             Mat;
-typedef Eigen::VectorXf             Vec;
-typedef Eigen::Triplet<float>       T;
+using SpMat = Eigen::SparseMatrix<float>;
+using Mat = Eigen::MatrixXf;
+using Vec = Eigen::VectorXf;
+using T = Eigen::Triplet<float>;
 
 class SurfaceSolution
 {
@@ -22,7 +28,9 @@ public:
     void update();
     ~SurfaceSolution();
 
-    static void BuildSphere(TriMesh &m, Vec3f ori, float r);
+    static void BuildOctahedron(TriMesh& mesh, float r, bool clear = false);
+    static void BuildIcosahedron(TriMesh& mesh, float r, bool clear = false);
+    static void BuildSphere(TriMesh &m, float r, int max_div = 2, bool clear = false);
 
 private:
     TriMesh &s_mesh;

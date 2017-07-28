@@ -17,8 +17,3 @@ SurfaceSolution::~SurfaceSolution()
 {
 }
 
-void SurfaceSolution::BuildSphere(TriMesh& m, OpenMesh::Vec3f ori, float r)
-{
-    m.clear();
-
-}

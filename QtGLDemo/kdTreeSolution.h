@@ -110,7 +110,7 @@ namespace kdt
             return indices;
         }
 
-        /** @brief Searches neigbors within radius.
+        /** @brief Searches neighbors within radius.
         */
         std::vector<int> radiusSearch(const PointT& query, double radius) const
         {
@@ -132,7 +132,7 @@ namespace kdt
             Node() : idx(-1), axis(-1) { next[0] = next[1] = nullptr; }
         };
 
-        /** @brief k-d tree exeption.
+        /** @brief k-d tree exception.
         */
         class Exception : public std::exception { using std::exception::exception; };
 

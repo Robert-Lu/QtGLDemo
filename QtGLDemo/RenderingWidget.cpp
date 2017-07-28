@@ -15,7 +15,8 @@
 #define BOUND(x, l, h) ((x) > (h) ? (h) : (x) < (l) ? (l) : (x))
 
 RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
-    : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), dis_field(nullptr),
+    : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), 
+dis_field(nullptr), ss(nullptr),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
 render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME },
@@ -168,6 +169,30 @@ void RenderingWidget::ReadMeshFromFile()
     GenerateBufferFromMesh(mesh, vertex_data_mesh);
 
     buffer_need_update_mesh = true;
+
+    // Surface Solution unbind
+    if (ss != nullptr)
+    {
+        delete ss;
+        ss = nullptr;
+    }
+}
+
+void RenderingWidget::GenerateSphereMesh()
+{
+    SurfaceSolution::BuildSphere(mesh, 1.0f, 7);
+    // Update the vertex normals
+    mesh.request_vertex_normals();  
+    mesh.request_face_normals();
+    mesh.update_normals();
+
+    // Extract every vertex by face-vertex circulator.
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+
+
+    buffer_need_update_mesh = true;
+
+    // Surface Solution unbind
     if (ss != nullptr)
     {
         delete ss;
@@ -199,7 +224,7 @@ void RenderingWidget::ReadPointCloudFromFile()
         msg.log(tr("Cannot read point cloud."), ERROR_MSG);
         throw "up";
     }
-    TOC("Read Mesh");
+    TOC("Read Point Cloud");
 
     if (filename.contains("coodtr"))
     {
@@ -713,7 +738,28 @@ void RenderingWidget::UpdateSlicingPlane(int max_div_set)
 
 void RenderingWidget::UpdateSurface(int iter) // default = 1
 {
+    if (mesh.vertices_empty())
+    {
+        emit(StatusInfo(tr("Update Canceled, Surface is Empty.")));
+        msg.log(tr("Update Canceled, Surface is Empty."), INFO_MSG);
+        return;
+    }
 
+    if (dis_field == nullptr)
+    {
+        emit(StatusInfo(tr("Update Canceled, dis_field is null.")));
+        msg.log(tr("Update Canceled, dis_field is null."), INFO_MSG);
+        return;
+    }
+
+    if (ss == nullptr)
+    {
+        // initialize the Surface Solution.
+        ss = new SurfaceSolution(mesh, dis_field, msg);
+    }
+
+    for (int i = 0; i < iter; i++)
+        ss->update();
 }
 
 void RenderingWidget::initializeGL()
@@ -1153,6 +1199,7 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             render_config.get_float("Default_Camera_Z") },
             { 0.0f, 0.0f, 0.0f });
         break;
+        // TODO
     case Qt::Key_F:
         render_show_face = !render_show_face;
         emit(StatusInfo(QString("render_show_face set to %0").arg(render_show_face)));
@@ -1161,6 +1208,9 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         render_cull_face = !render_cull_face;
         emit(StatusInfo(QString("render_cull_face set to %0").arg(render_cull_face)));
         break;
+    case Qt::Key_T:
+        this->GenerateSphereMesh();
+
 
     default:
         emit(StatusInfo(QString("pressed ") + e->text() +

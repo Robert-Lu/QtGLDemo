@@ -54,6 +54,7 @@ signals:
 
 public slots:
     void ReadMeshFromFile();
+    void GenerateSphereMesh();
     void ReadPointCloudFromFile();
     void ReadDistanceFieldFromFile();
     void SaveMeshToFile();
@@ -140,7 +141,7 @@ private:
     // Slicing Position
     float slicing_position;
 
-    // Background Color
+    // Colors
     OpenMesh::Vec3f background_color;
     OpenMesh::Vec3f mesh_color;
     OpenMesh::Vec3f point_clout_color;
