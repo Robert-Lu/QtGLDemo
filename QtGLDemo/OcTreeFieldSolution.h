@@ -10,8 +10,8 @@ typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 struct OcNode
 {
     // data
-    float value;
-    OpenMesh::Vec3f dir;
+    float value[8];
+    OpenMesh::Vec3f dir[8];
     // meta
     OpenMesh::Vec3f min_pos; // mid position of the grid
     OpenMesh::Vec3f max_pos; // mid position of the grid
@@ -33,6 +33,8 @@ public:
     OcTreeField(QDataStream &in);
     ~OcTreeField();
     OcNode find(OpenMesh::Vec3f);
+    float get_value(OpenMesh::Vec3f);
+    OpenMesh::Vec3f get_dir(OpenMesh::Vec3f);
     bool save_to_file(QDataStream &out);
 
     struct StatBundle
@@ -59,6 +61,11 @@ private:
 
 /* header only implementation */
 
+inline OpenMesh::Vec3f kdpoint_to_vec3f(kdt::kdPoint p)
+{
+    return{ p[0], p[1], p[2] };
+}
+
 inline OcTreeField::OcTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos, kdt::kdTree* kdt, std::vector<kdt::kdPoint> *_pts, int _max_div)
     : max_div(_max_div), kdtree(kdt), pts(_pts)
 {
@@ -78,8 +85,11 @@ inline OcNode *OcTreeField::_rebuild(QDataStream& in)
     in >> root->min_pos[0] >> root->min_pos[1] >> root->min_pos[2];
     in >> root->max_pos[0] >> root->max_pos[1] >> root->max_pos[2];
     in >> root->size;
-    in >> root->value;
-    in >> root->dir[0] >> root->dir[1] >> root->dir[2];
+    for (int i = 0; i < 8; i++)
+    {
+        in >> root->value[i];
+        in >> root->dir[i][0] >> root->dir[i][1] >> root->dir[i][2];
+    }
 
     bool has_children;
     in >> has_children;
@@ -126,13 +136,82 @@ inline OcNode OcTreeField::find(OpenMesh::Vec3f pos)
     return _find(tree, pos);
 }
 
+inline float OcTreeField::get_value(OpenMesh::Vec3f pos)
+{
+    auto node = _find(tree, pos);
+    auto min = node.min_pos;
+    auto max = node.max_pos;
+    float dd = max[0] - min[0];
+    float dx = (pos[0] - min[0]) / dd;
+    float dy = (pos[1] - min[1]) / dd;
+    float dz = (pos[2] - min[2]) / dd;
+
+    float mix_dis = 0.0f;
+    for (int i = 0; i < 8; i++)
+    {
+        float weight = 1.0f;
+        if (i % 2 == 0)
+            weight *= dx;
+        else
+            weight *= 1 - dx;
+        if (i / 2 % 2 == 0)
+            weight *= dy;
+        else
+            weight *= 1 - dy;
+        if (i / 4 == 0)
+            weight *= dz;
+        else
+            weight *= 1 - dz;
+
+        mix_dis += weight * node.value[i];
+    }
+
+    return mix_dis;
+}
+
+inline OpenMesh::Vec3f OcTreeField::get_dir(OpenMesh::Vec3f pos)
+{
+    auto node = _find(tree, pos);
+    auto min = node.min_pos;
+    auto max = node.max_pos;
+    float dd = max[0] - min[0];
+    float dx = (pos[0] - min[0]) / dd;
+    float dy = (pos[1] - min[1]) / dd;
+    float dz = (pos[2] - min[2]) / dd;
+
+    OpenMesh::Vec3f mix_dis{ 0.0f, 0.0f, 0.0f };
+    for (int i = 0; i < 8; i++)
+    {
+        float weight = 1.0f;
+        if (i % 2 == 0)
+            weight *= dx;
+        else
+            weight *= 1 - dx;
+        if (i / 2 % 2 == 0)
+            weight *= dy;
+        else
+            weight *= 1 - dy;
+        if (i / 4 == 0)
+            weight *= dz;
+        else
+            weight *= 1 - dz;
+
+        mix_dis += weight * node.dir[i];
+    }
+
+    return mix_dis;
+}
+
 inline void OcTreeField::_save(QDataStream& out, OcNode *root)
 {
     out << root->min_pos[0] << root->min_pos[1] << root->min_pos[2];
     out << root->max_pos[0] << root->max_pos[1] << root->max_pos[2];
     out << root->size;
-    out << root->value;
-    out << root->dir[0] << root->dir[1] << root->dir[2];
+    for (int i = 0; i < 8; i++)
+    {
+        out << root->value[i];
+        out << root->dir[i][0] << root->dir[i][1] << root->dir[i][2];
+    }
     bool has_children = (root->children != nullptr);
     out << has_children;
     if (has_children)
@@ -167,15 +246,37 @@ inline void OcTreeField::_expand(OcNode* root, int limit)
     const auto &max_pos = root->max_pos;
     const OpenMesh::Vec3f mid_pos = 0.5f * (min_pos + max_pos);
 
-    kdt::kdPoint p{ SPVEC3(mid_pos) };
-    auto idx = kdtree->nnSearch(p);
-    auto pos = (*pts)[idx];
-    auto dis = NORM3(pos, p);
+    float max_dis = 0.0f;
+    for (int i = 0; i < 8; i++)
+    {
+        OpenMesh::Vec3f point;
+        if (i % 2 == 0)
+            point[0] = max_pos[0];
+        else
+            point[0] = min_pos[0];
+        if (i / 2 % 2 == 0)
+            point[1] = max_pos[1];
+        else
+            point[1] = min_pos[1];
+        if (i / 4 == 0)
+            point[2] = max_pos[2];
+        else
+            point[2] = min_pos[2];
 
-    root->value = dis;
+        kdt::kdPoint p{ SPVEC3(point) };
+        auto idx = kdtree->nnSearch(p);
+        auto pos = (*pts)[idx];
+        auto dis = NORM3(pos, p);
+        OpenMesh::Vec3f dir = (kdpoint_to_vec3f(pos) - kdpoint_to_vec3f(p));
+        dir.normalized();
+        root->value[i] = dis;
+        root->dir[i] = dir;
+        if (max_dis < dis)
+            max_dis = dis;
+    }
 
     // when distance less than grid size, expand
-    if (dis < root->size / 2.0f && limit > 0)
+    if (max_dis < root->size && limit > 0)
     {
         stat_bundle.grid_cnt += 7;
         stat_bundle.depth_cnt[max_div - limit + 1] += 8;

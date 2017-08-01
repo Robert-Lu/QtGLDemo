@@ -23,6 +23,12 @@ TextConfigLoader::TextConfigLoader(const char* filename)
 
 TextConfigLoader::~TextConfigLoader() {  }
 
+void TextConfigLoader::reload()
+{
+    config_map_.clear();
+    read();
+}
+
 void TextConfigLoader::read()
 {
     // Read shader source code from files.
@@ -95,4 +101,10 @@ void TextConfigLoader::read()
             config_map_[key] = temp;
     }
     config_file.close();
+}
+
+// return true is string in map
+bool TextConfigLoader::check(const QString &str)
+{
+    return config_map_.find(str) != config_map_.end();
 }

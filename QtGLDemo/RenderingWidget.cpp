@@ -180,7 +180,8 @@ void RenderingWidget::ReadMeshFromFile()
 
 void RenderingWidget::GenerateSphereMesh()
 {
-    SurfaceSolution::BuildSphere(mesh, 1.0f, 7);
+    SurfaceSolution::BuildSphere(mesh, 1.0f, 
+        algorithm_config.get_int("Shpere_Max_Division", 7), true);
     // Update the vertex normals
     mesh.request_vertex_normals();  
     mesh.request_face_normals();
@@ -188,7 +189,6 @@ void RenderingWidget::GenerateSphereMesh()
 
     // Extract every vertex by face-vertex circulator.
     GenerateBufferFromMesh(mesh, vertex_data_mesh);
-
 
     buffer_need_update_mesh = true;
 
@@ -668,32 +668,28 @@ void RenderingWidget::UpdateSlicingPlane(int max_div_set)
 
                         if (!use_mid)
                         {
-                            auto nodell = dis_field->find(posll);
-                            auto disll = nodell.value;
+                            auto disll = dis_field->get_value(posll);
                             auto color_phasell = BOUND(powf(disll, 0.5f), 0.0f, 0.5f);
                             qcolor = QColor::fromHsvF(color_phasell, 1.0f, 1.0f);
                             colorll[0] = qcolor.redF();
                             colorll[1] = qcolor.greenF();
                             colorll[2] = qcolor.blueF();
 
-                            auto nodelh = dis_field->find(poslh);
-                            auto dislh = nodelh.value;
+                            auto dislh = dis_field->get_value(poslh);
                             auto color_phaselh = BOUND(powf(dislh, 0.5f), 0.0f, 0.5f);
                             qcolor = QColor::fromHsvF(color_phaselh, 1.0f, 1.0f);
                             colorlh[0] = qcolor.redF();
                             colorlh[1] = qcolor.greenF();
                             colorlh[2] = qcolor.blueF();
 
-                            auto nodehl = dis_field->find(poshl);
-                            auto dishl = nodehl.value;
+                            auto dishl = dis_field->get_value(poshl);
                             auto color_phasehl = BOUND(powf(dishl, 0.5f), 0.0f, 0.5f);
                             qcolor = QColor::fromHsvF(color_phasehl, 1.0f, 1.0f);
                             colorhl[0] = qcolor.redF();
                             colorhl[1] = qcolor.greenF();
                             colorhl[2] = qcolor.blueF();
 
-                            auto nodehh = dis_field->find(poshh);
-                            auto dishh = nodehh.value;
+                            auto dishh = dis_field->get_value(poshh);
                             auto color_phasehh = BOUND(powf(dishh, 0.5f), 0.0f, 0.5f);
                             qcolor = QColor::fromHsvF(color_phasehh, 1.0f, 1.0f);
                             colorhh[0] = qcolor.redF();
@@ -703,9 +699,8 @@ void RenderingWidget::UpdateSlicingPlane(int max_div_set)
                         else
                         {
                             auto mid_pos = (posll + poshh) / 2;
-                            auto node = dis_field->find(mid_pos);
-                            auto dis = node.value;
-                            auto color_phase = BOUND(powf(dis, 0.5f), 0.0f, 0.5f);
+                            auto dis = dis_field->get_value(mid_pos);
+                            auto color_phase = BOUND(powf(dis, 0.5f), 0.0f, 1.0f);
                             qcolor = QColor::fromHsvF(color_phase, 1.0f, 1.0f);
                             colorll[0] = qcolor.redF();
                             colorll[1] = qcolor.greenF();
@@ -755,11 +750,19 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
     if (ss == nullptr)
     {
         // initialize the Surface Solution.
-        ss = new SurfaceSolution(mesh, dis_field, msg);
+        ss = new SurfaceSolution(mesh, dis_field, msg, algorithm_config);
     }
+
+    algorithm_config.reload();
 
     for (int i = 0; i < iter; i++)
         ss->update();
+
+    mesh.update_normals();
+
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    buffer_need_update_mesh = true;
+    update();
 }
 
 void RenderingWidget::initializeGL()
@@ -964,7 +967,7 @@ void RenderingWidget::paintGL()
     {
         vao_mesh.bind();
         {
-            shader_program_basic_light->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
+            shader_program_basic_light->setUniformValue("lightDirFrom", camera.direction());
             shader_program_basic_light->setUniformValue("viewPos", camera.position());
             shader_program_basic_light->setUniformValue("model", mat_model);
             shader_program_basic_light->setUniformValue("view", camera.view_mat());
@@ -986,7 +989,10 @@ void RenderingWidget::paintGL()
     }
     shader_program_basic_light->release();
 
+    // When draw base(coordinates) and slice(slicing plane):
+    //     disable face cull and adjust polygon mode to fill
     glDisable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     shader_program_pure_color->bind();
     {
@@ -1210,7 +1216,10 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         break;
     case Qt::Key_T:
         this->GenerateSphereMesh();
-
+        break;
+    case Qt::Key_U:
+        this->UpdateSurface();
+        break;
 
     default:
         emit(StatusInfo(QString("pressed ") + e->text() +

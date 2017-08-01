@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
 
     ConsoleMessageManager msg(std::cout);
     msg.enable(TRIVIAL_MSG);
+    msg.enable(MATRIX_MSG);
 
     QApplication a(argc, argv);
     auto global_font = gui_config.get_string("Global_Font");
