@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "QtGLDemo.h"
+#include "ConfigDialog.h"
 
 QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, QWidget *parent)
     : QMainWindow(parent), msg(_msg), gui_config(_gui_config)
@@ -22,7 +23,7 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
         this->setFixedSize(width * zoom, height * zoom);
     }
 
-    rendering_widget = new RenderingWidget(msg, this);
+    rendering_widget = new RenderingWidget(msg, config_bundle, this);
     setCentralWidget(rendering_widget);
 
     CreateAction();
@@ -194,6 +195,12 @@ void QtGLDemo::CreateAction()
         if (ok)
             this->rendering_widget->UpdateSlicingPlane(i);
     });
+
+    actViewConfig = new QAction(tr("&Configure ..."));
+    actViewConfig->setShortcut(QKeySequence(tr("Ctrl+,")));
+    connect(actViewConfig, &QAction::triggered, this, [this]() {
+        this->rendering_widget->SyncConfigBundle(ShowConfigDialog(ExtractConfigBundle()));
+    });
 }
 
 void QtGLDemo::CreateMenu()
@@ -260,8 +267,10 @@ void QtGLDemo::CreateMenu()
     sliceMenu->addAction(actViewCheckSlicingDirectionZ);
     sliceMenu->addSeparator();
     sliceMenu->addAction(actViewSwitchSlicingMaxDivision);
-    //auto sliceMenu = viewMenu->addMenu(tr("&Slice"));
-    
+    // View/===
+    viewMenu->addSeparator();
+    viewMenu->addAction(actViewConfig);
+
 }
 
 void QtGLDemo::CreateStatusBar()
@@ -272,13 +281,18 @@ void QtGLDemo::CreateStatusBar()
     connect(rendering_widget, SIGNAL(StatusInfo(const QString &)), this, SLOT(SetStatusInfo(const QString&)));
 }
 
-ConfigBundle QtGLDemo::ExtractConfigBundle()
+ConfigBundle &QtGLDemo::ExtractConfigBundle()
 {
-    ConfigBundle cb;
-    cb.slice_config.use_slice = actViewSwitchEnableSlicing->isChecked();
-    cb.slice_config.slice_x = actViewCheckSlicingDirectionX->isChecked();
-    cb.slice_config.slice_y = actViewCheckSlicingDirectionY->isChecked();
-    cb.slice_config.slice_z = actViewCheckSlicingDirectionZ->isChecked();
+    config_bundle.slice_config.use_slice = actViewSwitchEnableSlicing->isChecked();
+    config_bundle.slice_config.slice_x = actViewCheckSlicingDirectionX->isChecked();
+    config_bundle.slice_config.slice_y = actViewCheckSlicingDirectionY->isChecked();
+    config_bundle.slice_config.slice_z = actViewCheckSlicingDirectionZ->isChecked();
+    return config_bundle;
+}
 
-    return cb;
+ConfigBundle &QtGLDemo::ShowConfigDialog(ConfigBundle& curr)
+{
+    ConfigDialog cd(curr);
+    cd.exec();
+    return curr;
 }

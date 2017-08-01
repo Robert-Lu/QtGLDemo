@@ -18,27 +18,7 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 
-struct ConfigBundle
-{
-    struct SliceConfig
-    {
-        bool use_slice;
-        bool slice_x;
-        bool slice_y;
-        bool slice_z;
-    } slice_config;
-
-    struct RenderConfig
-    {
-        bool cull_face;
-        bool draw_face;
-        struct Material
-        {
-            GLfloat ambient;
-            GLfloat specular;
-        } material;
-    } render_config;
-};
+#include "ConfigBundleStructure.h"
 
 class RenderingWidget : public QOpenGLWidget,
                         protected QOpenGLFunctions
@@ -46,7 +26,7 @@ class RenderingWidget : public QOpenGLWidget,
     Q_OBJECT
 
 public:
-    RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent = Q_NULLPTR);
+    RenderingWidget(ConsoleMessageManager &_msg, ConfigBundle &config_bundle, QWidget *parent = Q_NULLPTR);
     virtual ~RenderingWidget();
 
 signals:
@@ -91,11 +71,7 @@ private:
     ConsoleMessageManager &msg;
     TextConfigLoader render_config;
     TextConfigLoader algorithm_config;
-    ConfigBundle config_bundle;
-    
-    // Render
-    bool render_show_face;
-    bool render_cull_face;
+    ConfigBundle &config_bundle;
 
     // OpenGL Staff
     QOpenGLShaderProgram *shader_program_basic_light;

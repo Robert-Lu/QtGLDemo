@@ -58,6 +58,8 @@ private:
     QActionGroup *actViewCheckSlicingDirectionGroup;
     QAction *actViewSwitchSlicingMaxDivision;
 
+    QAction *actViewConfig;
+
     // UI component
     QMenu   *fileMenu;
     QMenu   *editMenu;
@@ -66,9 +68,11 @@ private:
     QLabel  *statusInfoLabel;
 
     RenderingWidget *rendering_widget;
+    ConfigBundle config_bundle;
 
     void CreateAction();
     void CreateMenu();
     void CreateStatusBar();
-    ConfigBundle ExtractConfigBundle();
+    ConfigBundle &ExtractConfigBundle();
+    ConfigBundle &ShowConfigDialog(ConfigBundle &curr);
 };

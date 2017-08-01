@@ -14,13 +14,12 @@
 #define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
 #define BOUND(x, l, h) ((x) > (h) ? (h) : (x) < (l) ? (l) : (x))
 
-RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, QWidget *parent)
-    : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), 
+RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, ConfigBundle &cb, QWidget *parent)
+    : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), config_bundle(cb),
 dis_field(nullptr), ss(nullptr),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
-render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME },
-render_show_face(true), render_cull_face(true)
+render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
 {
     // Set the focus policy to Strong,
     // then the renderingWidget can accept keyboard input event.
@@ -886,10 +885,10 @@ void RenderingWidget::paintGL()
     // Any subsequent drawing calls will render the triangles in
     // wire-frame mode until we set it back to its default using
     // `glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)`.
-    if (!render_show_face)
+    if (!config_bundle.render_config.draw_face)
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    if (render_cull_face)
+    if (config_bundle.render_config.cull_face)
         glEnable(GL_CULL_FACE);
 
     QMatrix4x4 mat_model;
@@ -963,29 +962,51 @@ void RenderingWidget::paintGL()
         buffer_need_update_slice = false;
     }
 
+    // Render
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     shader_program_basic_light->bind();
     {
-        vao_mesh.bind();
-        {
-            shader_program_basic_light->setUniformValue("lightDirFrom", camera.direction());
-            shader_program_basic_light->setUniformValue("viewPos", camera.position());
-            shader_program_basic_light->setUniformValue("model", mat_model);
-            shader_program_basic_light->setUniformValue("view", camera.view_mat());
-            shader_program_basic_light->setUniformValue("projection", mat_projection);
-            glDrawArrays(GL_TRIANGLES, 0, vertex_data_mesh.size());
-        }
-        vao_mesh.release();
-
         vao_pc.bind();
         {
-            shader_program_basic_light->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
-            shader_program_basic_light->setUniformValue("viewPos", camera.position());
-            shader_program_basic_light->setUniformValue("model", mat_model);
-            shader_program_basic_light->setUniformValue("view", camera.view_mat());
-            shader_program_basic_light->setUniformValue("projection", mat_projection);
-            glDrawArrays(GL_POINTS, 0, vertex_data_pc.size());
+            if (config_bundle.render_config.point_cloud_visible)
+            {
+                shader_program_basic_light->setUniformValue("lightDirFrom", 1.0f, 1.0f, 1.0f);
+                shader_program_basic_light->setUniformValue("viewPos", camera.position());
+                shader_program_basic_light->setUniformValue("model", mat_model);
+                shader_program_basic_light->setUniformValue("view", camera.view_mat());
+                shader_program_basic_light->setUniformValue("projection", mat_projection);
+                shader_program_basic_light->setUniformValue("alpha", config_bundle.render_config.point_cloud_alpha);
+
+                shader_program_basic_light->setUniformValue("material.ambient", 1.0f);
+                shader_program_basic_light->setUniformValue("material.diffuse", 0.0f);
+                shader_program_basic_light->setUniformValue("material.specular", 0.0f);
+                shader_program_basic_light->setUniformValue("material.shininess", 32.0f);
+                glDrawArrays(GL_POINTS, 0, vertex_data_pc.size());
+            }
         }
         vao_pc.release();
+
+        vao_mesh.bind();
+        {
+            if (config_bundle.render_config.mesh_visible)
+            {
+                shader_program_basic_light->setUniformValue("lightDirFrom", camera.direction());
+                shader_program_basic_light->setUniformValue("viewPos", camera.position());
+                shader_program_basic_light->setUniformValue("model", mat_model);
+                shader_program_basic_light->setUniformValue("view", camera.view_mat());
+                shader_program_basic_light->setUniformValue("projection", mat_projection);
+                shader_program_basic_light->setUniformValue("alpha", config_bundle.render_config.mesh_alpha);
+                const auto &material = config_bundle.render_config.material;
+                shader_program_basic_light->setUniformValue("material.ambient", material.ambient);
+                shader_program_basic_light->setUniformValue("material.diffuse", material.diffuse);
+                shader_program_basic_light->setUniformValue("material.specular", material.specular);
+                shader_program_basic_light->setUniformValue("material.shininess", material.shininess);
+                glDrawArrays(GL_TRIANGLES, 0, vertex_data_mesh.size());
+            }
+        }
+        vao_mesh.release();
     }
     shader_program_basic_light->release();
 
@@ -1009,16 +1030,19 @@ void RenderingWidget::paintGL()
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        vao_slice.bind();
+        if (config_bundle.render_config.slice_visible)
         {
-            auto alpha = render_config.get_float("Slicing_Plane_Alpha");
-            shader_program_pure_color->setUniformValue("alpha", alpha);
-            shader_program_pure_color->setUniformValue("model", mat_model);
-            shader_program_pure_color->setUniformValue("view", camera.view_mat());
-            shader_program_pure_color->setUniformValue("projection", mat_projection);
-            glDrawArrays(GL_TRIANGLES, 0, vertex_data_slice.size());
+            vao_slice.bind();
+            {
+                auto alpha = config_bundle.render_config.slice_alpha;
+                shader_program_pure_color->setUniformValue("alpha", alpha);
+                shader_program_pure_color->setUniformValue("model", mat_model);
+                shader_program_pure_color->setUniformValue("view", camera.view_mat());
+                shader_program_pure_color->setUniformValue("projection", mat_projection);
+                glDrawArrays(GL_TRIANGLES, 0, vertex_data_slice.size());
+            }
+            vao_slice.release();
         }
-        vao_slice.release();
     }
     shader_program_pure_color->release();
     
@@ -1207,12 +1231,12 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         break;
         // TODO
     case Qt::Key_F:
-        render_show_face = !render_show_face;
-        emit(StatusInfo(QString("render_show_face set to %0").arg(render_show_face)));
+        config_bundle.render_config.draw_face = !config_bundle.render_config.draw_face;
+        emit(StatusInfo(QString("render_show_face set to %0").arg(config_bundle.render_config.draw_face)));
         break;
     case Qt::Key_C:
-        render_cull_face = !render_cull_face;
-        emit(StatusInfo(QString("render_cull_face set to %0").arg(render_cull_face)));
+        config_bundle.render_config.cull_face = !config_bundle.render_config.cull_face;
+        emit(StatusInfo(QString("render_cull_face set to %0").arg(config_bundle.render_config.draw_face)));
         break;
     case Qt::Key_T:
         this->GenerateSphereMesh();
