@@ -10,12 +10,12 @@ inline std::string _mat_to_string(SpMat &m, const std::string &prompt = "")
 {
     std::ostringstream oss;
     if (!prompt.empty())
-        oss << "\n" << prompt << ":\n";
+        oss << "\n" << prompt << ":";
 
     if (m.cols() <= MAX_MAT_OUTPUT_SIZE && m.rows() <= MAX_MAT_OUTPUT_SIZE)
-        oss << m;
+        oss << std::endl << m;
     else
-        oss << "[SpMat\t" << m.rows() << " * " << m.cols() << "]";
+        oss << "{ SpMat\t" << m.rows() << " * " << m.cols() << " }";
     return oss.str();
 }
 
@@ -24,12 +24,12 @@ inline std::string _mat_to_string(Mat &m, const std::string &prompt = "")
 
     std::ostringstream oss;
     if (!prompt.empty())
-        oss << "\n" << prompt << ":\n";
+        oss << "\n" << prompt << ":";
 
     if (m.cols() <= MAX_MAT_OUTPUT_SIZE && m.rows() <= MAX_MAT_OUTPUT_SIZE)
-        oss << m;
+        oss << std::endl << m;
     else
-        oss << "[Mat\t" << m.rows() << " * " << m.cols() << "]";
+        oss << "{ Mat\t" << m.rows() << " * " << m.cols() << " }";
     return oss.str();
 }
 
@@ -38,12 +38,12 @@ inline std::string _mat_to_string(Vec &m, const std::string &prompt = "")
 
     std::ostringstream oss;
     if (!prompt.empty())
-        oss << "\n" << prompt << ":\n";
+        oss << "\n" << prompt << ":";
 
     if (m.cols() <= MAX_MAT_OUTPUT_SIZE && m.rows() <= MAX_MAT_OUTPUT_SIZE)
-        oss << m;
+        oss << std::endl << m;
     else
-        oss << "[Vec\t" << m.rows() << " * " << m.cols() << "]";
+        oss << "{ Vec\t" << m.rows() << " * " << m.cols() << " }";
     return oss.str();
 }
 
