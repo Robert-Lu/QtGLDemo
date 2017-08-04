@@ -1,6 +1,7 @@
 #include "stdafx.h"
-#include "SurfaceSolution.h"
+#include "SurfaceSolutionBase.h"
 #include <cmath>
+
 
 /**
  * \brief convert from Cartesian to spherical coordinate with r given
@@ -20,6 +21,7 @@ inline Vec3f to_spherical_coord_with_const_r(Vec3f p, float r)
     return{ r, theta, phi };
 }
 
+
 /**
 * \brief convert from spherical to Cartesian coordinate with r given
 * \param p Vec3f (r, theta, phi)
@@ -38,6 +40,7 @@ inline Vec3f to_cartesian_coord_with_const_r(Vec3f p, float r)
     return{ x, y, z };
 }
 
+
 /**
  * \brief calculate the mid point of p and q in spherical coordinates.
  * \param p first point
@@ -51,6 +54,7 @@ inline Vec3f mid_point_spherical_with_const_r(Vec3f p, Vec3f q, float r)
     return t.normalized();
 }
 
+
 /**
  * \brief Build an Octahedron.
  * 
@@ -60,7 +64,7 @@ inline Vec3f mid_point_spherical_with_const_r(Vec3f p, Vec3f q, float r)
  * \param r         radio for vertices to central point
  * \param clear     whether clear the mesh
  */
-void SurfaceSolution::BuildOctahedron(TriMesh& mesh, float r, bool clear)
+void SurfaceSolutionBase::BuildOctahedron(TriMesh& mesh, float r, bool clear)
 {
     if (clear)
         mesh.clear();
@@ -135,7 +139,7 @@ void SurfaceSolution::BuildOctahedron(TriMesh& mesh, float r, bool clear)
 * \param r         radio for vertices to central point
 * \param clear     whether clear the mesh
 */
-void SurfaceSolution::BuildIcosahedron(TriMesh& mesh, float r, bool clear)
+void SurfaceSolutionBase::BuildIcosahedron(TriMesh& mesh, float r, bool clear)
 {
     if (clear)
         mesh.clear();
@@ -188,13 +192,14 @@ void SurfaceSolution::BuildIcosahedron(TriMesh& mesh, float r, bool clear)
         );
 }
 
+
 /**
  * \brief Build a sphere by dividing an octahedron.
  * \param mesh      ref to mesh, will change
  * \param r         radio for vertices to central point
  * \param clear     whether clear the mesh
  */
-void SurfaceSolution::BuildSphere(TriMesh& mesh, float r, int max_div, bool clear)
+void SurfaceSolutionBase::BuildSphere(TriMesh& mesh, float r, int max_div, bool clear)
 {
     if (clear)
         mesh.clear();

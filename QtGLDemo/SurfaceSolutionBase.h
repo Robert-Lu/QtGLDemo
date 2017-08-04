@@ -13,20 +13,15 @@ using FaceHandle = TriMesh::FaceHandle;
 using HalfEdgeHandle = TriMesh::HalfedgeHandle;
 using Point = TriMesh::Point;
 using OpenMesh::Vec3f;
+using SpMatBuilder = std::vector<std::tuple<int, int, float>>;
+using SpMatTriple = std::tuple<int, int, float>;
 
-#include <Eigen/Sparse>
-#include <Eigen/Dense>
-using SpMat = Eigen::SparseMatrix<float>;
-using Mat = Eigen::MatrixXf;
-using Vec = Eigen::VectorXf;
-using T = Eigen::Triplet<float>;
-
-class SurfaceSolution
+class SurfaceSolutionBase
 {
 public:
-    SurfaceSolution(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
-    void update();
-    ~SurfaceSolution();
+    SurfaceSolutionBase(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
+    virtual void update() = 0;
+    ~SurfaceSolutionBase();
 
     static void BuildOctahedron(TriMesh& mesh, float r, bool clear = false);
     static void BuildIcosahedron(TriMesh& mesh, float r, bool clear = false);
@@ -43,9 +38,11 @@ protected:
     std::map<VertexHandle, int> vert_index;
     std::vector<int> num_neighbors;
     std::vector<std::vector<int>> neighbors;
-    SpMat mLaplacian;
+
+    SpMatBuilder builderLaplacian;
 
     void UpdateBasicMeshInformation();
-    void BuildLaplacianMatrix();
+    void BuildLaplacianMatrixBuilder();
+    void RefineSurface();
 };
 

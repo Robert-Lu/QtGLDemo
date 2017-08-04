@@ -1,6 +1,5 @@
 #include "stdafx.h"
-#include "SurfaceSolution.h"
-#include <sstream>
+#include "SurfaceSolutionEigen.h"
 
 #define MAX_MAT_OUTPUT_SIZE 99
 
@@ -47,70 +46,6 @@ inline std::string _mat_to_string(Vec &m, const std::string &prompt = "")
     return oss.str();
 }
 
-/**
- * \brief record basic information from mesh.
- * 
- * num_vert, verts, num_neighbors, neighbors.
- */
-void SurfaceSolution::UpdateBasicMeshInformation()
-{
-    num_verts = mesh.n_vertices();
-    verts.clear();
-    num_neighbors.clear();
-    neighbors.clear();
-    vert_index.clear();
-    for (auto vh : mesh.vertices())
-    {
-        vert_index[vh] = verts.size();
-        verts.push_back(vh);
-    }
-    for (auto vh : mesh.vertices())
-    {
-        neighbors.push_back(std::vector<int>());
-        int neighbor_count = 0;
-        auto vv_iter = mesh.vv_begin(vh);
-        for (; vv_iter != mesh.vv_end(vh); vv_iter++)
-        {
-            neighbor_count++;
-            neighbors.back().push_back(vert_index[*vv_iter]);
-        }
-        num_neighbors.push_back(neighbor_count);
-    }
-}
-
-/**
- * \brief build Sparse Laplacian Matrix.
- */
-void SurfaceSolution::BuildLaplacianMatrix()
-{
-    mLaplacian = SpMat(num_verts, num_verts);
-    std::vector<T> builderLaplacian;
-    for (int i = 0; i < num_verts; i++)
-    {
-        float weight_sum = 0.0f;
-        for (int neib_vert_idx : neighbors[i])
-        {
-            float weight = 1.0f; // TODO
-            builderLaplacian.push_back(T(i, neib_vert_idx, weight));
-            weight_sum += weight;
-        }
-        builderLaplacian.push_back(T(i, i, -weight_sum));
-    }
-    mLaplacian.setFromTriplets(builderLaplacian.begin(), builderLaplacian.end());
-    mLaplacian.makeCompressed();
-}
-
-SurfaceSolution::SurfaceSolution(TriMesh& s, OcTreeField *d, 
-    ConsoleMessageManager &m, TextConfigLoader &ac)
-    : mesh(s), dis_field(d), msg(m), algorithm_config(ac)
-{
-    // Record basic information from the mesh.
-    UpdateBasicMeshInformation();
-
-    // Build Laplacian Matrix.
-    BuildLaplacianMatrix();
-}
-
 inline void _fill_sparse(SpMat &src, SpMat &dest, int rs, int cs, int r, int c)
 {
     for (int c = 0; c<src.cols(); ++c)
@@ -120,16 +55,15 @@ inline void _fill_sparse(SpMat &src, SpMat &dest, int rs, int cs, int r, int c)
     }
 }
 
-
-void SurfaceSolution::update()
+void SurfaceSolutionEigen::update()
 {
     /**
-     *            LHS       V' ==               RHS
-     *            
-     * [    w_L    * Lap]           [            O            ]
-     * [ (w_P+w_F) *  I ] * V' ==   [ (w_P+w_F) * V + w_F * F ]
-     */
-     
+    *            LHS       V' ==               RHS
+    *
+    * [    w_L    * Lap]           [            O            ]
+    * [ (w_P+w_F) *  I ] * V' ==   [ (w_P+w_F) * V + w_F * F ]
+    */
+
     // Extract Constants;
     float w_L = algorithm_config.get_float("w_L", 1.0f);
     float w_P = algorithm_config.get_float("w_P", 1.0f);
@@ -187,7 +121,29 @@ void SurfaceSolution::update()
     }
 }
 
-SurfaceSolution::~SurfaceSolution()
+SurfaceSolutionEigen::SurfaceSolutionEigen(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac)
+    : SurfaceSolutionBase(s, d, m, ac)
+{
+    BuildLaplacianMatrix();
+}
+
+SurfaceSolutionEigen::~SurfaceSolutionEigen()
 {
 }
 
+void SurfaceSolutionEigen::BuildLaplacianMatrix()
+{
+    mLaplacian = SpMat(num_verts, num_verts);
+    mLaplacian.reserve(builderLaplacian.size());
+    for (int i = 0; i < num_verts; i++)
+    {
+        float weight_sum = 0.0f;
+        for (int neib_vert_idx : neighbors[i])
+        {
+            float weight = 1.0f; // TODO
+            mLaplacian.insert(i, neib_vert_idx) = -weight;
+            weight_sum += weight;
+        }
+        mLaplacian.insert(i, i) = weight_sum;
+    }
+}

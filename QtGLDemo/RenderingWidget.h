@@ -12,7 +12,7 @@
 #include "TextConfigLoader.h"
 #include "kdTreeSolution.h"
 #include "OcTreeFieldSolution.h"
-#include "SurfaceSolution.h"
+#include "SurfaceSolutionBase.h"
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
@@ -95,7 +95,7 @@ private:
     OcTreeField *dis_field;
     
     // Surface Solution
-    SurfaceSolution *ss;
+    SurfaceSolutionBase *ss;
 
     // Vertex Data
     TriMesh mesh;

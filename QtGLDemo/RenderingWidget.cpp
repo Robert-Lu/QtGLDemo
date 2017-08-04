@@ -3,6 +3,8 @@
 #include "Vertex.h"
 #include "QTiming.h"
 #include "GlobalConfig.h"
+#include "SurfaceSolutionEigen.h"
+#include "SurfaceSolutionMatlab.h"
 
 #define TIC QTiming::Tic();
 #define TOC(s) {\
@@ -179,7 +181,7 @@ void RenderingWidget::ReadMeshFromFile()
 
 void RenderingWidget::GenerateSphereMesh()
 {
-    SurfaceSolution::BuildSphere(mesh, 1.0f, 
+    SurfaceSolutionBase::BuildSphere(mesh, 1.0f, 
         algorithm_config.get_int("Shpere_Max_Division", 7), true);
     // Update the vertex normals
     mesh.request_vertex_normals();  
@@ -749,7 +751,7 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
     if (ss == nullptr)
     {
         // initialize the Surface Solution.
-        ss = new SurfaceSolution(mesh, dis_field, msg, algorithm_config);
+        ss = new SurfaceSolutionMatlab(mesh, dis_field, msg, algorithm_config);
     }
 
     algorithm_config.reload();
