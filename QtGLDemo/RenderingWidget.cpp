@@ -1291,6 +1291,12 @@ void RenderingWidget::TranslateCoodinate(TriMesh& M)
 void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& D)
 {
     OpenMesh::Vec3f color = mesh_color;
+    OpenMesh::Vec3f red{ 1.0f, 0.0f, 0.0f };
+    OpenMesh::Vec3f orange{ 1.0f, 0.5f, 0.0f };
+    OpenMesh::Vec3f yellow{ 1.0f, 1.0f, 0.0f };
+    OpenMesh::Vec3f green{ 0.0f, 1.0f, 0.0f };
+    OpenMesh::Vec3f aoi{ 0.0f, 1.0f, 1.0f };
+    OpenMesh::Vec3f blue{ 0.0f, 0.0f, 1.0f };
 
     D.clear();
     for (auto f_it : M.faces())
@@ -1302,7 +1308,24 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
             auto vh = *fv_it;
             auto pos = M.point(vh);
             auto nor = M.normal(vh);
-            D.push_back({ pos, color, nor });
+            int tag = -1;
+            if (ss != nullptr)
+                tag = ss->tagged(vh);
+
+            if (tag == 1)
+                D.push_back({ pos, red, nor });
+            else if (tag == 2)
+                D.push_back({ pos, orange, nor });
+            else if (tag == 3)
+                D.push_back({ pos, yellow, nor });
+            else if (tag == 4)
+                D.push_back({ pos, green, nor });
+            else if (tag == 5)
+                D.push_back({ pos, aoi, nor });
+            else if (tag == 6)
+                D.push_back({ pos, blue, nor });
+            else
+                D.push_back({ pos, color, nor });
         }
     }
 }

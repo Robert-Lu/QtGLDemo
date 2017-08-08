@@ -146,4 +146,6 @@ void SurfaceSolutionMatlab::update()
     {
         mesh.point(verts[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     }
+
+    RefineSurface();
 }

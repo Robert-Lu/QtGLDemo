@@ -21,6 +21,7 @@ class SurfaceSolutionBase
 public:
     SurfaceSolutionBase(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
     virtual void update() = 0;
+    int tagged(VertexHandle vh);
     ~SurfaceSolutionBase();
 
     static void BuildOctahedron(TriMesh& mesh, float r, bool clear = false);
@@ -32,17 +33,25 @@ protected:
     ConsoleMessageManager &msg;
     TextConfigLoader &algorithm_config;
     OcTreeField *dis_field;
-
+    
+    // Basic Information
     int num_verts;
     std::vector<VertexHandle> verts;
     std::map<VertexHandle, int> vert_index;
     std::vector<int> num_neighbors;
     std::vector<std::vector<int>> neighbors;
 
+    // Tag Vertex, DEBUG USE
+    std::map<VertexHandle, int> verts_tag;
+
+    // Matrix Builder
     SpMatBuilder builderLaplacian;
 
     void UpdateBasicMeshInformation();
     void BuildLaplacianMatrixBuilder();
     void RefineSurface();
+
+private:
+    float _cotangent_for_angle_AOB(int, int, int);
 };
 

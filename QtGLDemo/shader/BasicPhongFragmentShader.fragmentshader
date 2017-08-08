@@ -39,6 +39,6 @@ void main()
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = specularStrength * spec * lightColor;
 
-    vec3 result = (ambient + diffuse + specular) * objectColor;
+    vec3 result = (ambient + diffuse) * objectColor + specular;
     color = vec4(result, alpha);
 }
