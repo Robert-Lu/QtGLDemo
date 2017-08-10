@@ -185,6 +185,7 @@ void SurfaceSolutionBase::RefineSurface()
     ave_edge_len /= mesh.n_edges();
     ave_face_area /= mesh.n_faces();
 
+    /*
     // Record the faces to expand.
     verts_tag.clear();
     std::set<FaceHandle> set_faces_to_expand;
@@ -322,7 +323,6 @@ void SurfaceSolutionBase::RefineSurface()
         mesh.add_face(vh[1], vh[2], mid_vh);
         mesh.add_face(vh[2], vh[3], mid_vh);
         mesh.add_face(vh[3], vh[0], mid_vh);
-        mesh.col
     }
     mesh.garbage_collection();
 
@@ -334,11 +334,11 @@ void SurfaceSolutionBase::RefineSurface()
     }
 
     // Record the faces to shrink.
-    //std::set<FaceHandle> set_faces_to_shrink;
-    //std::vector<HalfEdgeHandle> edges_to_shrink;
+    std::set<FaceHandle> set_faces_to_shrink;
+    std::vector<HalfEdgeHandle> edges_to_shrink;
 
     // For each face, check for shrink.
-    /*
+    
     float area_shrink_threshold = algorithm_config.get_float("Area_Shrink_Threshold", 1.5f);
     for (auto fh : mesh.faces())
     {

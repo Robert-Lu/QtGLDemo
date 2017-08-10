@@ -2,7 +2,8 @@
 #include "MeshRefineSolution.h"
 
 
-MeshRefineSolution::MeshRefineSolution()
+MeshRefineSolution::MeshRefineSolution(TriMesh &s, ConsoleMessageManager &m, TextConfigLoader &ac)
+    : mesh(s), msg(m), algorithm_config(ac)
 {
 }
 

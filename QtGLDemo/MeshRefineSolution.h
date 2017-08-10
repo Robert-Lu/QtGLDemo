@@ -2,7 +2,12 @@
 class MeshRefineSolution
 {
 public:
-    MeshRefineSolution();
+    MeshRefineSolution(TriMesh &s, ConsoleMessageManager &m, TextConfigLoader &ac);
     ~MeshRefineSolution();
+
+protected:
+    TriMesh &mesh;
+    ConsoleMessageManager &msg;
+    TextConfigLoader &algorithm_config;
 };
 
