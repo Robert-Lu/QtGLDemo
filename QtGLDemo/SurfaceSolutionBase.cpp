@@ -202,8 +202,11 @@ void SurfaceSolutionBase::RefineSurface()
         if (set_faces_to_expand.find(fh) != set_faces_to_expand.end())
             continue;
 
-        // Expand Case 1: face area too big:
         auto face_area = _area(mesh, fh);
+        if (face_area < ave_face_area)
+            continue;
+
+        // Expand Case 1: face area too big:
         if (face_area > area_expand_threshold * ave_face_area)
         {
             // Find the largest edge.
@@ -297,7 +300,38 @@ void SurfaceSolutionBase::RefineSurface()
     }
 
     // Apply the Expand.
+    mesh.request_face_status();
+    for (auto heh : edges_to_expand)
+    {
+        VertexHandle vh[4];
+        vh[0] = mesh.to_vertex_handle(heh);
+        vh[1] = mesh.to_vertex_handle(mesh.next_halfedge_handle(heh));
+        vh[2] = mesh.to_vertex_handle(mesh.opposite_halfedge_handle(heh));
+        vh[3] = mesh.to_vertex_handle(mesh.next_halfedge_handle(
+            mesh.opposite_halfedge_handle(heh)));
+        if (mesh.from_vertex_handle(heh) != vh[2])
+            throw "up";
 
+        auto mid_pos = (mesh.point(vh[0]) + mesh.point(vh[2])) / 2.0f;
+        auto mid_vh = mesh.add_vertex(mid_pos);
+
+        mesh.delete_face(mesh.face_handle(heh), false);
+        mesh.delete_face(mesh.opposite_face_handle(heh), false);
+
+        mesh.add_face(vh[0], vh[1], mid_vh);
+        mesh.add_face(vh[1], vh[2], mid_vh);
+        mesh.add_face(vh[2], vh[3], mid_vh);
+        mesh.add_face(vh[3], vh[0], mid_vh);
+        mesh.col
+    }
+    mesh.garbage_collection();
+
+    if (!edges_to_expand.empty())
+    {
+        UpdateBasicMeshInformation();
+        BuildLaplacianMatrixBuilder();
+        LaplacianUpdated = true;
+    }
 
     // Record the faces to shrink.
     //std::set<FaceHandle> set_faces_to_shrink;
@@ -339,7 +373,7 @@ void SurfaceSolutionBase::RefineSurface()
 
 SurfaceSolutionBase::SurfaceSolutionBase(TriMesh& s, OcTreeField *d, 
     ConsoleMessageManager &m, TextConfigLoader &ac)
-    : mesh(s), dis_field(d), msg(m), algorithm_config(ac)
+    : mesh(s), dis_field(d), msg(m), algorithm_config(ac), LaplacianUpdated(false)
 {
     // Extract basic information from the mesh.
     UpdateBasicMeshInformation();

@@ -107,6 +107,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="MeshRefineSolution.cpp" />
     <ClCompile Include="OpenGLCamera.cpp" />
     <ClCompile Include="QtGLDemo.cpp" />
     <ClCompile Include="RenderingWidget.cpp" />
@@ -138,6 +139,7 @@
     <ClInclude Include="GeneratedFiles\ui_RenderingWidget.h" />
     <ClInclude Include="GlobalConfig.h" />
     <ClInclude Include="kdTreeSolution.h" />
+    <ClInclude Include="MeshRefineSolution.h" />
     <ClInclude Include="OcTreeFieldSolution.h" />
     <ClInclude Include="OpenGLCamera.h" />
     <ClInclude Include="QTiming.h" />

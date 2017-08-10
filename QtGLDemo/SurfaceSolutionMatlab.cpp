@@ -110,6 +110,12 @@ void SurfaceSolutionMatlab::update()
     InputVariableToEngine(engine, "w_F", w_F);
     InputVariableToEngine(engine, "num_verts", num_verts);
 
+    if (LaplacianUpdated)
+    {
+        InputSparseMatrixToEngine(engine, "Lap", builderLaplacian);
+        LaplacianUpdated = false;
+    }
+
     // Extract Position and \grad Potential.
     std::vector<std::vector<float>> data_position(num_verts, std::vector<float>(3, 0.0f));
     std::vector<std::vector<float>> data_grad_potential(num_verts, std::vector<float>(3, 0.0f));

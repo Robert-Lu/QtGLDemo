@@ -40,6 +40,7 @@ protected:
     std::map<VertexHandle, int> vert_index;
     std::vector<int> num_neighbors;
     std::vector<std::vector<int>> neighbors;
+    bool LaplacianUpdated;
 
     // Tag Vertex, DEBUG USE
     std::map<VertexHandle, int> verts_tag;
