@@ -146,6 +146,29 @@ inline float _cos_max_anglle(TriMesh &mesh, FaceHandle fh)
 }
 
 
+inline float _cos_min_anglle(TriMesh &mesh, FaceHandle fh)
+{
+    auto fv_iter = mesh.fv_begin(fh);
+    Vec3f pos[3];
+    int i = 0;
+    for (; fv_iter != mesh.fv_end(fh); fv_iter++)
+    {
+        auto v = *fv_iter;
+        pos[i++] = mesh.point(fv_iter);
+    }
+    float a = (pos[1] - pos[0]).norm();
+    float b = (pos[2] - pos[0]).norm();
+    float c = (pos[2] - pos[1]).norm();
+    if (a < b)
+        std::swap(a, b);
+    if (a < c)
+        std::swap(a, c);
+    if (b < c)
+        std::swap(b, c);
+    return (b * b + a * a - c * c) / b / a / 2.0f;
+}
+
+
 void SurfaceSolutionBase::RefineSurface()
 {
     // Calculate average edge length and triangle area.
@@ -169,8 +192,10 @@ void SurfaceSolutionBase::RefineSurface()
 
     // For each face, check for expand.
     float area_expand_threshold = algorithm_config.get_float("Area_Expand_Threshold", 1.5f);
-    float angle_expand_threshold = algorithm_config.get_float("Angle_Expand_Threshold", 1.5f);
-    float cos_angle_expand_threshold = cos(angle_expand_threshold / 180.0f * 3.1415926f);
+    float big_angle_expand_threshold = algorithm_config.get_float("Big_Angle_Expand_Threshold", 135.0f);
+    float small_angle_expand_threshold = algorithm_config.get_float("Small_Angle_Expand_Threshold", 30.0f);
+    float cos_big_angle_expand_threshold = cos(big_angle_expand_threshold / 180.0f * 3.1415926f);
+    float cos_small_angle_expand_threshold = cos(small_angle_expand_threshold / 180.0f * 3.1415926f);
     for (auto fh : mesh.faces())
     {
         // Skip if already in the set of faces to expand.
@@ -182,8 +207,9 @@ void SurfaceSolutionBase::RefineSurface()
         if (face_area > area_expand_threshold * ave_face_area)
         {
             // Find the largest edge.
-            HalfEdgeHandle eh_first = mesh.halfedge_handle(fh);
-            HalfEdgeHandle eh = eh_first, eh_max = eh_first;
+            HalfEdgeHandle eh, eh_first, eh_max;
+            eh = eh_first = eh_max = mesh.halfedge_handle(fh);
+
             float max_len = 0.0f;
             do
             {
@@ -209,11 +235,12 @@ void SurfaceSolutionBase::RefineSurface()
 
         // Expand Case 2: angle too big:
         auto cos_max_angle = _cos_max_anglle(mesh, fh);
-        if (cos_max_angle < cos_angle_expand_threshold)
+        if (cos_max_angle < cos_big_angle_expand_threshold)
         {
             // Find the largest edge.
-            HalfEdgeHandle eh_first = mesh.halfedge_handle(fh);
-            HalfEdgeHandle eh = eh_first, eh_max = eh_first;
+            HalfEdgeHandle eh, eh_first, eh_max;
+            eh = eh_first = eh_max = mesh.halfedge_handle(fh);
+
             float max_len = 0.0f;
             do
             {
@@ -225,11 +252,48 @@ void SurfaceSolutionBase::RefineSurface()
                 eh = mesh.next_halfedge_handle(eh);
             } while (eh != eh_first);
 
+            FaceHandle adjcent_face = mesh.opposite_face_handle(eh_max);
+            set_faces_to_expand.insert(fh);
+            set_faces_to_expand.insert(adjcent_face);
+            edges_to_expand.push_back(eh_max);
+
             verts_tag[mesh.from_vertex_handle(eh_max)] = 2;
             verts_tag[mesh.to_vertex_handle(eh_max)] = 2;
 
             continue;
         }
+
+        // Expand Case 3: angle too small:
+        auto cos_min_angle = _cos_min_anglle(mesh, fh);
+        if (cos_min_angle > cos_small_angle_expand_threshold)
+        {
+            // Find the largest edge.
+            HalfEdgeHandle eh, eh_first, eh_max;
+            eh = eh_first = eh_max = mesh.halfedge_handle(fh);
+
+            float max_len = 0.0f;
+            do
+            {
+                if (mesh.calc_edge_length(eh) > max_len)
+                {
+                    eh_max = eh;
+                    max_len = mesh.calc_edge_length(eh);
+                }
+                eh = mesh.next_halfedge_handle(eh);
+            } while (eh != eh_first);
+
+            FaceHandle adjcent_face = mesh.opposite_face_handle(eh_max);
+            set_faces_to_expand.insert(fh);
+            set_faces_to_expand.insert(adjcent_face);
+            edges_to_expand.push_back(eh_max);
+
+            verts_tag[mesh.from_vertex_handle(eh_max)] = 3;
+            verts_tag[mesh.to_vertex_handle(eh_max)] = 3;
+
+            continue;
+        }
+
+        // Expand Case
     }
 
     // Apply the Expand.
