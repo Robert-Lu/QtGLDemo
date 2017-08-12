@@ -2,6 +2,7 @@
 
 #include "ConsoleMessageManager.h"
 #include "OcTreeFieldSolution.h"
+#include "MeshRefineSolution.h"
 
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
@@ -33,6 +34,7 @@ protected:
     ConsoleMessageManager &msg;
     TextConfigLoader &algorithm_config;
     OcTreeField *dis_field;
+    MeshRefineSolution refine;
     
     // Basic Information
     int num_verts;
@@ -40,7 +42,7 @@ protected:
     std::map<VertexHandle, int> vert_index;
     std::vector<int> num_neighbors;
     std::vector<std::vector<int>> neighbors;
-    bool LaplacianUpdated;
+    bool surface_changed;
 
     // Tag Vertex, DEBUG USE
     std::map<VertexHandle, int> verts_tag;

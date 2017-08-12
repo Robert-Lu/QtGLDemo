@@ -171,19 +171,12 @@ inline float _cos_min_anglle(TriMesh &mesh, FaceHandle fh)
 
 void SurfaceSolutionBase::RefineSurface()
 {
-    // Calculate average edge length and triangle area.
-    float ave_edge_len = 0.0f;
-    float ave_face_area = 0.0f;
-    for (auto eh : mesh.edges())
+    surface_changed = refine.refine();
+    if (surface_changed)
     {
-        ave_edge_len += mesh.calc_edge_length(eh);
+        UpdateBasicMeshInformation();
+        BuildLaplacianMatrixBuilder();
     }
-    for (auto fh : mesh.faces())
-    {
-        ave_face_area += _area(mesh, fh);
-    }
-    ave_edge_len /= mesh.n_edges();
-    ave_face_area /= mesh.n_faces();
 
     /*
     // Record the faces to expand.
@@ -373,7 +366,8 @@ void SurfaceSolutionBase::RefineSurface()
 
 SurfaceSolutionBase::SurfaceSolutionBase(TriMesh& s, OcTreeField *d, 
     ConsoleMessageManager &m, TextConfigLoader &ac)
-    : mesh(s), dis_field(d), msg(m), algorithm_config(ac), LaplacianUpdated(false)
+    : mesh(s), dis_field(d), msg(m), algorithm_config(ac), 
+      surface_changed(false), refine(s, m, ac)
 {
     // Extract basic information from the mesh.
     UpdateBasicMeshInformation();

@@ -110,10 +110,10 @@ void SurfaceSolutionMatlab::update()
     InputVariableToEngine(engine, "w_F", w_F);
     InputVariableToEngine(engine, "num_verts", num_verts);
 
-    if (LaplacianUpdated)
+    if (surface_changed)
     {
         InputSparseMatrixToEngine(engine, "Lap", builderLaplacian);
-        LaplacianUpdated = false;
+        surface_changed = false;
     }
 
     // Extract Position and \grad Potential.
