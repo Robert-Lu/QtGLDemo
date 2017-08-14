@@ -226,39 +226,43 @@ int MeshRefineSolution::_Flip(float edge_flip_tolerance, bool& changed)
             count++;
         }
     }
-    mesh.garbage_collection();
+    //mesh.garbage_collection();
 
     return count;
 }
 
 int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
 {
-    std::cout << edge_collapse_tolerance << "\n";
-    int output_count = 50;
-
     // Collapse
     std::set<FaceHandle> face_ignore;
     std::vector<HalfEdgeHandle> edge_to_collapse;
     for (auto fh : mesh.faces())
     {
         if (face_ignore.find(fh) != face_ignore.end())
+        {
             continue;
+        }
         // For each face, get the shortest edge.
         float min_len;
         auto eh_min = _get_min_edge_in_face(mesh, fh, min_len);
         // Get the opposite of the longest edge.
         auto opposite_fh = mesh.opposite_face_handle(eh_min);
         if (face_ignore.find(opposite_fh) != face_ignore.end())
+        {
             continue;
+        }
         if (min_len < edge_collapse_tolerance)
         {
-            if (output_count--)
-                std::cout << "Collapse at\t" << min_len << std::endl;
             // Apply Collapse.
             changed = true;
 
-            face_ignore.insert(fh);
-            face_ignore.insert(opposite_fh);
+            auto ff_iter = mesh.ff_begin(fh);
+            for (; ff_iter != mesh.ff_end(fh); ff_iter++)
+                face_ignore.insert(*ff_iter);
+            ff_iter = mesh.ff_begin(opposite_fh);
+            for (; ff_iter != mesh.ff_end(opposite_fh); ff_iter++)
+                face_ignore.insert(*ff_iter);
+            
             edge_to_collapse.push_back(eh_min);
         }
     }
