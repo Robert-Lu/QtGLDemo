@@ -182,7 +182,7 @@ void RenderingWidget::ReadMeshFromFile()
 void RenderingWidget::GenerateSphereMesh()
 {
     SurfaceSolutionBase::BuildSphere(mesh, 1.0f, 
-        algorithm_config.get_int("Shpere_Max_Division", 7), true);
+        algorithm_config.get_int("Shpere_Max_Division", 5), true);
     // Update the vertex normals
     mesh.request_vertex_normals();  
     mesh.request_face_normals();
@@ -1258,72 +1258,7 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
 
 void RenderingWidget::keyReleaseEvent(QKeyEvent* e)
 {
-    TriMesh mesh;
 
-    // Add some vertices as in the illustration above
-    TriMesh::VertexHandle vhandle[6];
-
-    vhandle[0] = mesh.add_vertex(TriMesh::Point(0, 0, 0));
-    vhandle[1] = mesh.add_vertex(TriMesh::Point(2, 0, 0));
-    vhandle[2] = mesh.add_vertex(TriMesh::Point(2, 0, 0));
-    vhandle[3] = mesh.add_vertex(TriMesh::Point(2, 2, 0));
-    vhandle[4] = mesh.add_vertex(TriMesh::Point(3, -1, 0));
-    vhandle[5] = mesh.add_vertex(TriMesh::Point(-1, 3, 0));
-
-    // Add three quad faces
-    std::vector<TriMesh::VertexHandle> face_vhandles;
-
-    face_vhandles.push_back(vhandle[0]);
-    face_vhandles.push_back(vhandle[1]);
-    face_vhandles.push_back(vhandle[2]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    face_vhandles.push_back(vhandle[1]);
-    face_vhandles.push_back(vhandle[3]);
-    face_vhandles.push_back(vhandle[2]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    face_vhandles.push_back(vhandle[0]);
-    face_vhandles.push_back(vhandle[2]);
-    face_vhandles.push_back(vhandle[5]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    face_vhandles.push_back(vhandle[2]);
-    face_vhandles.push_back(vhandle[3]);
-    face_vhandles.push_back(vhandle[5]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    face_vhandles.push_back(vhandle[0]);
-    face_vhandles.push_back(vhandle[4]);
-    face_vhandles.push_back(vhandle[1]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    face_vhandles.push_back(vhandle[1]);
-    face_vhandles.push_back(vhandle[4]);
-    face_vhandles.push_back(vhandle[3]);
-    mesh.add_face(face_vhandles);
-    face_vhandles.clear();
-
-    // Now find the edge between vertex vhandle[2]
-    // and vhandle[3]
-    mesh.request_edge_status();
-    mesh.request_vertex_status();
-    mesh.request_face_status();
-    for (TriMesh::HalfedgeIter it = mesh.halfedges_begin(); it != mesh.halfedges_end(); ++it) {
-
-        if (mesh.to_vertex_handle(it.handle()) == vhandle[1] &&
-            mesh.from_vertex_handle(it.handle()) == vhandle[2]) {
-            // Collapse edge
-            mesh.collapse(it.handle());
-            break;
-        }
-    }
-    mesh.garbage_collection();
 }
 
 void RenderingWidget::DrawCoord(std::vector<Vertex2D>& D, float len)

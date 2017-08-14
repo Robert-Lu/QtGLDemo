@@ -233,6 +233,9 @@ int MeshRefineSolution::_Flip(float edge_flip_tolerance, bool& changed)
 
 int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
 {
+    std::cout << edge_collapse_tolerance << "\n";
+    int output_count = 50;
+
     // Collapse
     std::set<FaceHandle> face_ignore;
     std::vector<HalfEdgeHandle> edge_to_collapse;
@@ -245,10 +248,12 @@ int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
         auto eh_min = _get_min_edge_in_face(mesh, fh, min_len);
         // Get the opposite of the longest edge.
         auto opposite_fh = mesh.opposite_face_handle(eh_min);
-        //_get_max_edge_in_face(mesh, opposite_fh, max_len_opposite);
-
+        if (face_ignore.find(opposite_fh) != face_ignore.end())
+            continue;
         if (min_len < edge_collapse_tolerance)
         {
+            if (output_count--)
+                std::cout << "Collapse at\t" << min_len << std::endl;
             // Apply Collapse.
             changed = true;
 
@@ -267,10 +272,10 @@ int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
         if (mesh.is_valid_handle(eh) && mesh.is_collapse_ok(eh))
         {
             mesh.collapse(eh);
-            mesh.garbage_collection();
             count++;
         }
     }
+    mesh.garbage_collection();
 
     return count;
 }
