@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "RenderingWidget.h"
+#include "ScriptLoader.h"
 #include "Vertex.h"
 #include "QTiming.h"
 #include "GlobalConfig.h"
@@ -16,9 +17,9 @@
 #define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
 #define BOUND(x, l, h) ((x) > (h) ? (h) : (x) < (l) ? (l) : (x))
 
-RenderingWidget::RenderingWidget(ConsoleMessageManager &_msg, ConfigBundle &cb, QWidget *parent)
+RenderingWidget::RenderingWidget(TextConfigLoader &_gui_config, ConsoleMessageManager &_msg, ConfigBundle &cb, QWidget *parent)
     : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), config_bundle(cb),
-dis_field(nullptr), ss(nullptr),
+dis_field(nullptr), ss(nullptr), mode{ ViewMode }, gui_config(_gui_config),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
 render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
@@ -1056,9 +1057,33 @@ void RenderingWidget::paintGL()
 
     // Native Painter work.
     QPainter painter(this);
+
+    // Configure Font
     painter.setPen(Qt::white);
-    /*painter.drawText(this->width() / 15, this->height() / 15,
-        "test QPainter.");*/
+    QFont font;
+    QString font_family = gui_config.get_string("Script_Font_Family", "");
+    int font_size = gui_config.get_int("Script_Font_Size", 12);
+    font.setFamily(font_family);
+    font.setPointSize(font_size);
+    painter.setFont(font);
+    painter.setPen(Qt::yellow);
+    
+    if (mode == ScriptMode && script_lineedit != nullptr)
+    {
+        int draw_height = this->height() * 14 / 15;
+        painter.drawText(this->width() / 15, draw_height,
+            script_lineedit->text());
+
+        painter.setPen(Qt::darkYellow);
+        double dpi = QGuiApplication::primaryScreen()->physicalDotsPerInch();
+        for (auto line : script_history)
+        {
+            draw_height -= font_size / 72.0f * dpi;
+
+            painter.drawText(this->width() / 15, draw_height,
+                line);
+        }
+    }
     painter.end();
 }
 
@@ -1221,17 +1246,22 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             camera.move_back(+dis);
         }
         break;
-    case Qt::Key_Escape:
-        exit(0);
-        break;
+    case Qt::Key_Q:
+        if (has_ctrl)
+            exit(0);
+    //case Qt::Key_Escape:
+    //    exit(0);
+    //    break;
     case Qt::Key_R:
         emit(StatusInfo(QString("reset camera")));
-        camera = OpenGLCamera({ render_config.get_float("Default_Camera_X"),
-            render_config.get_float("Default_Camera_Y"),
-            render_config.get_float("Default_Camera_Z") },
-            { 0.0f, 0.0f, 0.0f });
+        camera = OpenGLCamera({ 
+                render_config.get_float("Default_Camera_X"),
+                render_config.get_float("Default_Camera_Y"),
+                render_config.get_float("Default_Camera_Z") 
+            },
+            { 0.0f, 0.0f, 0.0f }
+        );
         break;
-        // TODO
     case Qt::Key_F:
         config_bundle.render_config.draw_face = !config_bundle.render_config.draw_face;
         emit(StatusInfo(QString("render_show_face set to %0").arg(config_bundle.render_config.draw_face)));
@@ -1245,6 +1275,25 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         break;
     case Qt::Key_U:
         this->UpdateSurface();
+        break;
+    // MODE
+    case Qt::Key_Colon:
+        mode = ScriptMode;
+        {
+            script_lineedit = new QLineEdit(this);
+            script_lineedit->grabKeyboard();
+            connect(script_lineedit, &QLineEdit::textChanged, this, [this]() {
+                update();
+            });
+            connect(script_lineedit, &QLineEdit::returnPressed, this, [this]() {
+                RunScript();
+                update();
+            });
+        }
+        break;
+    case Qt::Key_Escape:
+        mode = ViewMode;
+        this->grabKeyboard();
         break;
 
     default:
@@ -1398,5 +1447,55 @@ void RenderingWidget::ApplyFlip(TriMesh& M, int i)
         auto point = M.point(v);
         point[i] = -point[i];
         M.set_point(v, point);
+    }
+}
+
+void RenderingWidget::RunScript()
+{
+    if (mode != ScriptMode || script_lineedit == nullptr)
+        return;
+
+    script_history.push_front(script_lineedit->text());
+    if (script_history.size() > 9)
+        script_history.pop_back();
+    auto script = ScriptLoader::parse(script_lineedit->text());
+    script_lineedit->clear();
+
+    // main
+    if (script.empty())
+        return;
+
+    if (script[0] == "read")
+    {
+        if (script.size != 3)
+        {
+            auto m = QString("require 3 segments but get %0.").arg(script.size());
+            msg.log(m, ERROR_MSG);
+            script_history.push_front(m);
+            return;
+        }
+
+        auto type = script[1];
+        auto file = script[2];
+
+        if (type == "mesh")
+        {
+            
+        }
+        else if (type == "pc" || type == "point cloud")
+        {
+            
+        }
+        else if (type == "field")
+        {
+            
+        }
+        else
+        {
+            auto m = QString("unknown segment %0.").arg(type);
+            msg.log(m, ERROR_MSG);
+            script_history.push_front(m);
+            return;
+        }
     }
 }

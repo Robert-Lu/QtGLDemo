@@ -23,7 +23,7 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
         this->setFixedSize(width * zoom, height * zoom);
     }
 
-    rendering_widget = new RenderingWidget(msg, config_bundle, this);
+    rendering_widget = new RenderingWidget(gui_config, msg, config_bundle, this);
     setCentralWidget(rendering_widget);
 
     CreateAction();

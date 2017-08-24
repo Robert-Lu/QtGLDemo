@@ -18,6 +18,8 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 
+#include <deque>
+
 #include "ConfigBundleStructure.h"
 
 class RenderingWidget : public QOpenGLWidget,
@@ -26,7 +28,7 @@ class RenderingWidget : public QOpenGLWidget,
     Q_OBJECT
 
 public:
-    RenderingWidget(ConsoleMessageManager &_msg, ConfigBundle &config_bundle, QWidget *parent = Q_NULLPTR);
+    RenderingWidget(TextConfigLoader &_gui_config, ConsoleMessageManager &_msg, ConfigBundle &config_bundle, QWidget *parent = Q_NULLPTR);
     virtual ~RenderingWidget();
 
 signals:
@@ -69,9 +71,16 @@ protected:
 private:
     // utility
     ConsoleMessageManager &msg;
+    TextConfigLoader &gui_config;
     TextConfigLoader render_config;
     TextConfigLoader algorithm_config;
     ConfigBundle &config_bundle;
+
+    // Mode & Script
+    enum Mode { ViewMode, ScriptMode, SelectMode };
+    Mode mode;
+    QLineEdit *script_lineedit;
+    std::deque<QString> script_history;
 
     // OpenGL Staff
     QOpenGLShaderProgram *shader_program_basic_light;
@@ -132,4 +141,5 @@ private:
     void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
     static void ApplyFlip(TriMesh &, int i);
+    void RunScript();
 };

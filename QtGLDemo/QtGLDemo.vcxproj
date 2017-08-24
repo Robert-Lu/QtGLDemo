@@ -111,6 +111,7 @@
     <ClCompile Include="OpenGLCamera.cpp" />
     <ClCompile Include="QtGLDemo.cpp" />
     <ClCompile Include="RenderingWidget.cpp" />
+    <ClCompile Include="ScriptLoader.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -143,6 +144,7 @@
     <ClInclude Include="OcTreeFieldSolution.h" />
     <ClInclude Include="OpenGLCamera.h" />
     <ClInclude Include="QTiming.h" />
+    <ClInclude Include="ScriptLoader.h" />
     <ClInclude Include="SurfaceSolutionBase.h" />
     <ClInclude Include="SurfaceSolutionEigen.h" />
     <ClInclude Include="SurfaceSolutionMatlab.h" />

@@ -129,7 +129,7 @@ inline float _get_flip_ratio(TriMesh &mesh, HalfEdgeHandle heh)
     v[3] = mesh.to_vertex_handle(mesh.next_halfedge_handle(oheh));
 
     float len_edge = mesh.calc_edge_length(heh);
-    float len_flip = (mesh.point(v[1]) - mesh.point(v[2])).norm();
+    float len_flip = (mesh.point(v[1]) - mesh.point(v[3])).norm();
     return len_edge / len_flip;
 }
 
@@ -226,7 +226,7 @@ int MeshRefineSolution::_Flip(float edge_flip_tolerance, bool& changed)
             count++;
         }
     }
-    //mesh.garbage_collection();
+    mesh.garbage_collection();
 
     return count;
 }
@@ -275,6 +275,9 @@ int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
     {
         if (mesh.is_valid_handle(eh) && mesh.is_collapse_ok(eh))
         {
+            Vec3f mid = (mesh.point(mesh.to_vertex_handle(eh)) +
+                mesh.point(mesh.from_vertex_handle(eh))) / 2.0f;
+            mesh.point(mesh.to_vertex_handle(eh)) = mid;
             mesh.collapse(eh);
             count++;
         }
@@ -363,6 +366,7 @@ bool MeshRefineSolution::refine()
             msg.log(QString("no edge flip at iteration %0.").arg(i + 1), TRIVIAL_MSG);
             break;
         }
+        edge_flip_tolerance *= algorithm_config.get_float("Edge_Flip_Tolerance_Mult", 1.2f);
     }
 
     // Collapse
