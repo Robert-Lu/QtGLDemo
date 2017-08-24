@@ -36,9 +36,12 @@ signals:
 
 public slots:
     void ReadMeshFromFile();
+    void ReadMeshFromFile(const QString &);
     void GenerateSphereMesh();
     void ReadPointCloudFromFile();
+    void ReadPointCloudFromFile(const QString &);
     void ReadDistanceFieldFromFile();
+    void ReadDistanceFieldFromFile(const QString &);
     void SaveMeshToFile();
     void SavePointCloudToFile();
     void SaveDistanceFieldToFile();
@@ -81,6 +84,9 @@ private:
     Mode mode;
     QLineEdit *script_lineedit;
     std::deque<QString> script_history;
+    std::deque<int> script_history_linecnt;
+    enum ScriptHistoryType { ScriptType, InfoType, ErrorType };
+    std::deque<ScriptHistoryType> script_history_type;
 
     // OpenGL Staff
     QOpenGLShaderProgram *shader_program_basic_light;
@@ -100,7 +106,6 @@ private:
     std::vector<kdt::kdPoint> pts;
 
     // Distance Field 
-    //std::vector<std::vector<std::vector<float>>> dis_field;
     OcTreeField *dis_field;
     
     // Surface Solution
@@ -141,5 +146,7 @@ private:
     void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
     static void ApplyFlip(TriMesh &, int i);
+    void _InsertScriptHistory(const QString &str, ScriptHistoryType type);
+    void _RunScriptLine(std::vector<QString> &script);
     void RunScript();
 };

@@ -7,6 +7,9 @@
 #include "SurfaceSolutionEigen.h"
 #include "SurfaceSolutionMatlab.h"
 
+#include <QFileInfo>
+#include <QFontMetrics>
+
 #define TIC QTiming::Tic();
 #define TOC(s) {\
     QString prompt = tr(s " in %0 ms.").arg(QTiming::Toc());\
@@ -115,6 +118,17 @@ RenderingWidget::~RenderingWidget()
     delete shader_program_basic_light;
 }
 
+inline bool fileExists(QString path) {
+    QFileInfo check_file(path);
+    // check if file exists and if yes: Is it really a file and no directory?
+    if (check_file.exists() && check_file.isFile()) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
 void RenderingWidget::ReadMeshFromFile()
 {
     // get file name.
@@ -124,6 +138,19 @@ void RenderingWidget::ReadMeshFromFile()
 
     // check valid.
     if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    ReadMeshFromFile(filename);
+}
+
+void RenderingWidget::ReadMeshFromFile(const QString &filename)
+{
+    // check valid.
+    if (filename.isEmpty() || !fileExists(filename))
     {
         emit(StatusInfo(tr("Read from file Canceled.")));
         msg.log(tr("Read from file Canceled."), INFO_MSG);
@@ -178,6 +205,10 @@ void RenderingWidget::ReadMeshFromFile()
         delete ss;
         ss = nullptr;
     }
+
+    _InsertScriptHistory(QString("read mesh from file, size=(V:%0, E:%1, F:%2)")
+        .arg(mesh.n_vertices()).arg(mesh.n_edges()).arg(mesh.n_faces()),
+        InfoType);
 }
 
 void RenderingWidget::GenerateSphereMesh()
@@ -216,8 +247,21 @@ void RenderingWidget::ReadPointCloudFromFile()
         msg.log(tr("Read from file Canceled."), INFO_MSG);
         return;
     }
+    
+    ReadPointCloudFromFile(filename);
+}
 
-    OpenMesh::IO::Options opt; 
+void RenderingWidget::ReadPointCloudFromFile(const QString &filename)
+{
+    // check valid.
+    if (filename.isEmpty() || !fileExists(filename))
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::Options opt;
     // do not require vertex normal for point cloud.
 
     TIC;
@@ -240,6 +284,10 @@ void RenderingWidget::ReadPointCloudFromFile()
     msg.log(tr("Point Count: %0.").arg(pc.n_vertices()), INFO_MSG);
 
     buffer_need_update_pc = true;
+
+    _InsertScriptHistory(QString("read point cloud from file, size=%0")
+        .arg(pc.n_vertices()),
+        InfoType);
 }
 
 void RenderingWidget::ReadDistanceFieldFromFile()
@@ -257,10 +305,22 @@ void RenderingWidget::ReadDistanceFieldFromFile()
         return;
     }
 
+    ReadDistanceFieldFromFile(filename);
+}
+
+void RenderingWidget::ReadDistanceFieldFromFile(const QString &filename)
+{
+    if (filename.isEmpty() || !fileExists(filename))
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
     if (dis_field != nullptr)
     {
         QMessageBox::StandardButton reply;
-        reply = QMessageBox::question(this, "Test", 
+        reply = QMessageBox::question(this, "Test",
             "Distance Field already exist, confirm to overwrite?",
             QMessageBox::Yes | QMessageBox::No);
         if (reply == QMessageBox::No)
@@ -287,6 +347,7 @@ void RenderingWidget::ReadDistanceFieldFromFile()
 
     auto stat = dis_field->stat();
     msg.log("Build Distance Field on OcTree.", INFO_MSG);
+    _InsertScriptHistory("read field from file.", InfoType);
     msg.indent_more();
     msg.log(tr("Minimum size of grid: %0.").arg(stat.min_size), TRIVIAL_MSG);
     msg.log(tr("Total number of OcTree nodes: %0.").arg(stat.grid_cnt), TRIVIAL_MSG);
@@ -1066,22 +1127,56 @@ void RenderingWidget::paintGL()
     font.setFamily(font_family);
     font.setPointSize(font_size);
     painter.setFont(font);
-    painter.setPen(Qt::yellow);
     
+    double dpi = QGuiApplication::primaryScreen()->physicalDotsPerInch();
+    int draw_height = this->height() * 14 / 15;
+    int draw_width = this->height() / 15;
+    
+    painter.setPen(Qt::yellow);
     if (mode == ScriptMode && script_lineedit != nullptr)
     {
-        int draw_height = this->height() * 14 / 15;
-        painter.drawText(this->width() / 15, draw_height,
+        // draw prompt
+        painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+            ">>");
+
+        // draw line
+        painter.drawText(draw_width, draw_height,
             script_lineedit->text());
 
-        painter.setPen(Qt::darkYellow);
-        double dpi = QGuiApplication::primaryScreen()->physicalDotsPerInch();
-        for (auto line : script_history)
+        QFontMetrics fm(painter.font());
+        int cursor_pos = script_lineedit->cursorPosition();
+        int cursor_width = fm.width(script_lineedit->text().left(cursor_pos));
+        int font_width = fm.averageCharWidth();
+
+        // draw cursor
+        painter.drawText(draw_width + cursor_width - 0.5f * font_width, draw_height,
+            "|");
+    }
+    if (!script_history.empty())
+    {
+        for (int i = 0; i < script_history.size(); i++)
         {
             draw_height -= font_size / 72.0f * dpi;
 
-            painter.drawText(this->width() / 15, draw_height,
-                line);
+            // set color and draw prompt
+            if (script_history_type[i] == ErrorType)
+            {
+                painter.setPen(Qt::red);
+                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+                    "X");
+            }
+            else if (script_history_type[i] == ScriptType)
+            {
+                painter.setPen(Qt::darkYellow);
+            }
+            else
+            {
+                painter.setPen(Qt::white);
+                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+                    "*");
+            }
+            painter.drawText(draw_width, draw_height,
+                script_history[i]);
         }
     }
     painter.end();
@@ -1177,6 +1272,21 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
     float angle = 10.0f * multiplier;
     float dis = 0.2f * multiplier;
 
+    // Priority: prime
+    switch (e->key())
+    {
+    case Qt::Key_Escape:
+        mode = ViewMode;
+        this->grabKeyboard();
+        break;
+    case Qt::Key_Q:
+        if (has_ctrl)
+            exit(0);
+    }
+
+    if (mode != ViewMode)
+        return;
+    // Priority: normal
     switch (e->key())
     {
     case Qt::Key_Enter:
@@ -1246,12 +1356,7 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             camera.move_back(+dis);
         }
         break;
-    case Qt::Key_Q:
-        if (has_ctrl)
-            exit(0);
-    //case Qt::Key_Escape:
-    //    exit(0);
-    //    break;
+
     case Qt::Key_R:
         emit(StatusInfo(QString("reset camera")));
         camera = OpenGLCamera({ 
@@ -1285,16 +1390,16 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             connect(script_lineedit, &QLineEdit::textChanged, this, [this]() {
                 update();
             });
+            connect(script_lineedit, &QLineEdit::cursorPositionChanged, this, [this]() {
+                update();
+            });
             connect(script_lineedit, &QLineEdit::returnPressed, this, [this]() {
                 RunScript();
                 update();
             });
         }
         break;
-    case Qt::Key_Escape:
-        mode = ViewMode;
-        this->grabKeyboard();
-        break;
+
 
     default:
         emit(StatusInfo(QString("pressed ") + e->text() +
@@ -1450,28 +1555,33 @@ void RenderingWidget::ApplyFlip(TriMesh& M, int i)
     }
 }
 
-void RenderingWidget::RunScript()
+void RenderingWidget::_InsertScriptHistory(const QString& str, ScriptHistoryType type)
 {
-    if (mode != ScriptMode || script_lineedit == nullptr)
-        return;
+    int linecnt = str.count("\n") + 1;
+    script_history.push_front(str);
+    script_history_linecnt.push_front(linecnt);
+    script_history_type.push_front(type);
 
-    script_history.push_front(script_lineedit->text());
     if (script_history.size() > 9)
+    {
         script_history.pop_back();
-    auto script = ScriptLoader::parse(script_lineedit->text());
-    script_lineedit->clear();
+        script_history_linecnt.pop_back();
+        script_history_type.pop_back();
+    }
+}
 
-    // main
+void RenderingWidget::_RunScriptLine(std::vector<QString> &script)
+{
     if (script.empty())
         return;
 
     if (script[0] == "read")
     {
-        if (script.size != 3)
+        if (script.size() != 3)
         {
             auto m = QString("require 3 segments but get %0.").arg(script.size());
             msg.log(m, ERROR_MSG);
-            script_history.push_front(m);
+            _InsertScriptHistory(m, ErrorType);
             return;
         }
 
@@ -1480,22 +1590,35 @@ void RenderingWidget::RunScript()
 
         if (type == "mesh")
         {
-            
+            ReadMeshFromFile(file);
         }
         else if (type == "pc" || type == "point cloud")
         {
-            
+            ReadPointCloudFromFile(file);
         }
         else if (type == "field")
         {
-            
+            ReadDistanceFieldFromFile(file);
         }
         else
         {
             auto m = QString("unknown segment %0.").arg(type);
             msg.log(m, ERROR_MSG);
-            script_history.push_front(m);
+            _InsertScriptHistory(m, ErrorType);
             return;
         }
     }
+}
+
+void RenderingWidget::RunScript()
+{
+    if (mode != ScriptMode || script_lineedit == nullptr)
+        return;
+
+    _InsertScriptHistory(script_lineedit->text(), ScriptType);
+    auto script = ScriptLoader::parse(script_lineedit->text());
+    script_lineedit->clear();
+
+    // main
+    _RunScriptLine(script);
 }
