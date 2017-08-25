@@ -108,6 +108,12 @@ render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILE
     DrawCoord(vertex_data_base, render_config.get_float("Coordinate_Length"));
 
     msg.log("Rendering Widget constructor end.", TRIVIAL_MSG);
+
+    timer_auto_update = new QTimer(this);
+    connect(timer_auto_update, &QTimer::timeout, this, [this]() {
+        update();
+    });
+    timer_auto_update->start(50);
 }
 
 RenderingWidget::~RenderingWidget()
@@ -1127,7 +1133,9 @@ void RenderingWidget::paintGL()
     font.setFamily(font_family);
     font.setPointSize(font_size);
     painter.setFont(font);
-    
+    QFont font_bold = font;
+    font_bold.setBold(true);
+
     double dpi = QGuiApplication::primaryScreen()->physicalDotsPerInch();
     int draw_height = this->height() * 14 / 15;
     int draw_width = this->height() / 15;
@@ -1149,8 +1157,12 @@ void RenderingWidget::paintGL()
         int font_width = fm.averageCharWidth();
 
         // draw cursor
+        int rate = 255.0f * std::abs(QDateTime::currentMSecsSinceEpoch() % 1000 - 500) / 500.0f;
+        painter.setPen(QColor{ 255, 255, 0, rate });
+        painter.setFont(font_bold);
         painter.drawText(draw_width + cursor_width - 0.5f * font_width, draw_height,
             "|");
+        painter.setFont(font);
     }
     if (!script_history.empty())
     {
@@ -1168,6 +1180,8 @@ void RenderingWidget::paintGL()
             else if (script_history_type[i] == ScriptType)
             {
                 painter.setPen(Qt::darkYellow);
+                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+                    ">>");
             }
             else
             {
@@ -1493,7 +1507,6 @@ void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Verte
     for (auto vh : M.vertices())
     {
         auto pos = M.point(vh);
-//        auto nor = M.normal(vh);
         D.push_back({ pos, color, { 0.0f, 0.0f, 1.0f } });
     }
 }
@@ -1555,12 +1568,31 @@ void RenderingWidget::ApplyFlip(TriMesh& M, int i)
     }
 }
 
+void RenderingWidget::_PopScriptHistory()
+{
+    if (!script_history.empty() && !script_history_linecnt.empty() && !script_history_type.empty())
+    {
+        script_history.pop_back();
+        script_history_linecnt.pop_back();
+        script_history_type.pop_back();
+    }
+}
+
 void RenderingWidget::_InsertScriptHistory(const QString& str, ScriptHistoryType type)
 {
     int linecnt = str.count("\n") + 1;
     script_history.push_front(str);
     script_history_linecnt.push_front(linecnt);
     script_history_type.push_front(type);
+
+    // TODO
+    if (gui_config.get_bool("Script_Expire", true))
+    {
+        QTimer::singleShot(gui_config.get_int("Script_Expire_Time", 7500),
+            this, [this]() {
+            _PopScriptHistory();
+        });    
+    }
 
     if (script_history.size() > 9)
     {

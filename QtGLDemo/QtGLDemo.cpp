@@ -198,7 +198,7 @@ void QtGLDemo::CreateAction()
     actViewSwitchSlicingMaxDivision = new QAction(tr("&Max Division"));
     connect(actViewSwitchSlicingMaxDivision, &QAction::triggered, this, [this]() {
         bool ok;
-        int i = QInputDialog::getInt(this, tr("QInputDialog::getInteger()"),
+        int i = QInputDialog::getInt(this, tr("Require an integer"),
             tr("Max Division:"), 10, 0, 15, 1, &ok);
         if (ok)
             this->rendering_widget->UpdateSlicingPlane(i);

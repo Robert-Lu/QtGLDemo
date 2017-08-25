@@ -78,6 +78,7 @@ private:
     TextConfigLoader render_config;
     TextConfigLoader algorithm_config;
     ConfigBundle &config_bundle;
+    QTimer *timer_auto_update;
 
     // Mode & Script
     enum Mode { ViewMode, ScriptMode, SelectMode };
@@ -146,6 +147,7 @@ private:
     void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
     static void ApplyFlip(TriMesh &, int i);
+    void _PopScriptHistory();
     void _InsertScriptHistory(const QString &str, ScriptHistoryType type);
     void _RunScriptLine(std::vector<QString> &script);
     void RunScript();
