@@ -51,7 +51,7 @@ inline Vec3f to_cartesian_coord_with_const_r(Vec3f p, float r)
 inline Vec3f mid_point_spherical_with_const_r(Vec3f p, Vec3f q, float r)
 {
     Vec3f t = p + q;
-    return t.normalized();
+    return t.normalized() * r;
 }
 
 
@@ -147,18 +147,18 @@ void SurfaceSolutionBase::BuildIcosahedron(TriMesh& mesh, float r, bool clear)
     // generate vertices
     VertexHandle vhandle[12];
 
-    vhandle[0] = mesh.add_vertex(Point(0.000, 1.000, 0.000));
-    vhandle[1] = mesh.add_vertex(Point(0.894, 0.447, 0.000));
-    vhandle[2] = mesh.add_vertex(Point(0.276, 0.447, 0.851));
-    vhandle[3] = mesh.add_vertex(Point(-0.724, 0.447, 0.526));
-    vhandle[4] = mesh.add_vertex(Point(-0.724, 0.447, -0.526));
-    vhandle[5] = mesh.add_vertex(Point(0.276, 0.447, -0.851));
-    vhandle[6] = mesh.add_vertex(Point(0.724, -0.447, 0.526));
-    vhandle[7] = mesh.add_vertex(Point(-0.276, -0.447, 0.851));
-    vhandle[8] = mesh.add_vertex(Point(-0.894, -0.447, 0.000));
-    vhandle[9] = mesh.add_vertex(Point(-0.276, -0.447, -0.851));
-    vhandle[10] = mesh.add_vertex(Point(0.724, -0.447, -0.526));
-    vhandle[11] = mesh.add_vertex(Point(0.000, -1.000, 0.000));
+    vhandle[0] = mesh.add_vertex(Point(0.000, 1.000, 0.000) * r);
+    vhandle[1] = mesh.add_vertex(Point(0.894, 0.447, 0.000) * r);
+    vhandle[2] = mesh.add_vertex(Point(0.276, 0.447, 0.851) * r);
+    vhandle[3] = mesh.add_vertex(Point(-0.724, 0.447, 0.526) * r);
+    vhandle[4] = mesh.add_vertex(Point(-0.724, 0.447, -0.526) * r);
+    vhandle[5] = mesh.add_vertex(Point(0.276, 0.447, -0.851) * r);
+    vhandle[6] = mesh.add_vertex(Point(0.724, -0.447, 0.526) * r);
+    vhandle[7] = mesh.add_vertex(Point(-0.276, -0.447, 0.851) * r);
+    vhandle[8] = mesh.add_vertex(Point(-0.894, -0.447, 0.000) * r);
+    vhandle[9] = mesh.add_vertex(Point(-0.276, -0.447, -0.851) * r);
+    vhandle[10] = mesh.add_vertex(Point(0.724, -0.447, -0.526) * r);
+    vhandle[11] = mesh.add_vertex(Point(0.000, -1.000, 0.000) * r);
 
     int face_indices[20][3] =
     {

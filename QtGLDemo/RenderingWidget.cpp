@@ -233,7 +233,8 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename)
 
 void RenderingWidget::GenerateSphereMesh()
 {
-    SurfaceSolutionBase::BuildSphere(mesh, 1.0f, 
+    SurfaceSolutionBase::BuildSphere(mesh, 
+        algorithm_config.get_float("Shpere_Radio", 1.0f),
         algorithm_config.get_int("Shpere_Max_Division", 5), true);
     // Update the vertex normals
     mesh.request_vertex_normals();  
