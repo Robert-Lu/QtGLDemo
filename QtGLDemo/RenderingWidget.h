@@ -35,11 +35,14 @@ signals:
     void StatusInfo(const QString &);
 
 public slots:
+    void ClearMesh();
     void ReadMeshFromFile();
     void ReadMeshFromFile(const QString &);
     void GenerateSphereMesh();
+    void ClearPointCloud();
     void ReadPointCloudFromFile();
     void ReadPointCloudFromFile(const QString &);
+    void ClearDistanceField();
     void ReadDistanceFieldFromFile();
     void ReadDistanceFieldFromFile(const QString &);
     void SaveMeshToFile();
@@ -86,7 +89,7 @@ private:
     QLineEdit *script_lineedit;
     std::deque<QString> script_history;
     std::deque<int> script_history_linecnt;
-    enum ScriptHistoryType { ScriptType, InfoType, ErrorType };
+    enum ScriptHistoryType { ScriptType, InfoType, ErrorType, VoidType };
     std::deque<ScriptHistoryType> script_history_type;
 
     // OpenGL Staff
@@ -149,6 +152,6 @@ private:
     static void ApplyFlip(TriMesh &, int i);
     void _PopScriptHistory();
     void _InsertScriptHistory(const QString &str, ScriptHistoryType type);
-    void _RunScriptLine(std::vector<QString> &script);
+    void _RunScriptLine(std::vector<QString> &script, int recursion_limit = 10);
     void RunScript();
 };

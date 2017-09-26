@@ -17,6 +17,7 @@ public:
         return lines_[curr_line_++];
     }
     static std::vector<QString> parse(const QString &str);
+    bool empty() const { return lines_.empty(); }
     ~ScriptLoader();
 
 private:

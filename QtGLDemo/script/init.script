@@ -1,1 +1,3 @@
-read mesh ""
+read mesh "mesh/sphere.obj"
+read pc "mesh/bunny.ply"
+read field "mesh/bunny.octree"

@@ -4,8 +4,9 @@
 #include "Vertex.h"
 #include "QTiming.h"
 #include "GlobalConfig.h"
-#include "SurfaceSolutionEigen.h"
-#include "SurfaceSolutionMatlab.h"
+//#include "SurfaceSolutionEigen.h"
+//#include "SurfaceSolutionMatlab.h"
+#include "SurfaceSolutionNeo.h"
 
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -135,6 +136,18 @@ inline bool fileExists(QString path) {
     }
 }
 
+void RenderingWidget::ClearMesh()
+{
+    mesh.clear();
+
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    buffer_need_update_mesh = true;
+
+    QString m{ "clear mesh." };
+    msg.log(m, INFO_MSG);
+    _InsertScriptHistory(m, InfoType);
+}
+
 void RenderingWidget::ReadMeshFromFile()
 {
     // get file name.
@@ -172,6 +185,7 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename)
         msg.log(tr("Cannot read mesh."), ERROR_MSG);
         throw "up";
     }
+    OpenMesh::IO::read_mesh(mesh, filename.toStdString());
     TOC("Read Mesh");
 
     if (filename.contains("coodtr"))
@@ -239,6 +253,18 @@ void RenderingWidget::GenerateSphereMesh()
     }
 }
 
+void RenderingWidget::ClearPointCloud()
+{
+    pc.clear();
+
+    GenerateBufferFromPointCloud(pc, vertex_data_pc);
+    buffer_need_update_pc = true;
+
+    QString m{ "clear point cloud." };
+    msg.log(m, INFO_MSG);
+    _InsertScriptHistory(m, InfoType);
+}
+
 void RenderingWidget::ReadPointCloudFromFile()
 {
     // get file name.
@@ -286,14 +312,26 @@ void RenderingWidget::ReadPointCloudFromFile(const QString &filename)
 
     // extract every vertex by vertex iterator.
     GenerateBufferFromPointCloud(pc, vertex_data_pc);
+    buffer_need_update_pc = true;
 
     msg.log(tr("Point Count: %0.").arg(pc.n_vertices()), INFO_MSG);
-
-    buffer_need_update_pc = true;
 
     _InsertScriptHistory(QString("read point cloud from file, size=%0")
         .arg(pc.n_vertices()),
         InfoType);
+}
+
+void RenderingWidget::ClearDistanceField()
+{
+    if (dis_field != nullptr)
+    {
+        delete dis_field;
+        dis_field = nullptr;
+    }
+
+    QString m{ "clear field." };
+    msg.log(m, INFO_MSG);
+    _InsertScriptHistory(m, InfoType);
 }
 
 void RenderingWidget::ReadDistanceFieldFromFile()
@@ -819,7 +857,12 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
     if (ss == nullptr)
     {
         // initialize the Surface Solution.
-        ss = new SurfaceSolutionMatlab(mesh, dis_field, msg, algorithm_config);
+        QString method = algorithm_config.get_string("SurfaceUpdateMethod", "Neo");
+
+        if (method == "Matlab")
+            ss = new SurfaceSolutionMatlab(mesh, dis_field, msg, algorithm_config);
+        else if (method == "Neo")
+            ss = new SurfaceSolutionNeo(mesh, dis_field, msg, algorithm_config);
     }
 
     algorithm_config.reload();
@@ -1141,58 +1184,58 @@ void RenderingWidget::paintGL()
     int draw_width = this->height() / 15;
     
     painter.setPen(Qt::yellow);
-    if (mode == ScriptMode && script_lineedit != nullptr)
-    {
-        // draw prompt
-        painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
-            ">>");
+    //if (mode == ScriptMode && script_lineedit != nullptr)
+    //{
+    //    // draw prompt
+    //    painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+    //        ">>");
 
-        // draw line
-        painter.drawText(draw_width, draw_height,
-            script_lineedit->text());
+    //    // draw line
+    //    painter.drawText(draw_width, draw_height,
+    //        script_lineedit->text());
 
-        QFontMetrics fm(painter.font());
-        int cursor_pos = script_lineedit->cursorPosition();
-        int cursor_width = fm.width(script_lineedit->text().left(cursor_pos));
-        int font_width = fm.averageCharWidth();
+    //    QFontMetrics fm(painter.font());
+    //    int cursor_pos = script_lineedit->cursorPosition();
+    //    int cursor_width = fm.width(script_lineedit->text().left(cursor_pos));
+    //    int font_width = fm.averageCharWidth();
 
-        // draw cursor
-        int rate = 255.0f * std::abs(QDateTime::currentMSecsSinceEpoch() % 1000 - 500) / 500.0f;
-        painter.setPen(QColor{ 255, 255, 0, rate });
-        painter.setFont(font_bold);
-        painter.drawText(draw_width + cursor_width - 0.5f * font_width, draw_height,
-            "|");
-        painter.setFont(font);
-    }
-    if (!script_history.empty())
-    {
-        for (int i = 0; i < script_history.size(); i++)
-        {
-            draw_height -= font_size / 72.0f * dpi;
+    //    // draw cursor
+    //    int rate = 255.0f * std::abs(QDateTime::currentMSecsSinceEpoch() % 1000 - 500) / 500.0f;
+    //    painter.setPen(QColor{ 255, 255, 0, rate });
+    //    painter.setFont(font_bold);
+    //    painter.drawText(draw_width + cursor_width - 0.5f * font_width, draw_height,
+    //        "|");
+    //    painter.setFont(font);
+    //}
+    //if (!script_history.empty())
+    //{
+    //    for (int i = 0; i < script_history.size(); i++)
+    //    {
+    //        draw_height -= font_size / 72.0f * dpi;
 
-            // set color and draw prompt
-            if (script_history_type[i] == ErrorType)
-            {
-                painter.setPen(Qt::red);
-                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
-                    "X");
-            }
-            else if (script_history_type[i] == ScriptType)
-            {
-                painter.setPen(Qt::darkYellow);
-                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
-                    ">>");
-            }
-            else
-            {
-                painter.setPen(Qt::white);
-                painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
-                    "*");
-            }
-            painter.drawText(draw_width, draw_height,
-                script_history[i]);
-        }
-    }
+    //        // set color and draw prompt
+    //        if (script_history_type[i] == ErrorType)
+    //        {
+    //            painter.setPen(Qt::red);
+    //            painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+    //                "X");
+    //        }
+    //        else if (script_history_type[i] == ScriptType)
+    //        {
+    //            painter.setPen(Qt::darkYellow);
+    //            painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+    //                ">>");
+    //        }
+    //        else if (script_history_type[i] == InfoType)
+    //        {
+    //            painter.setPen(Qt::white);
+    //            painter.drawText(draw_width - font_size / 72.0f * dpi, draw_height,
+    //                "*");
+    //        }
+    //        painter.drawText(draw_width, draw_height,
+    //            script_history[i]);
+    //    }
+    //}
     painter.end();
 }
 
@@ -1289,10 +1332,10 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
     // Priority: prime
     switch (e->key())
     {
-    case Qt::Key_Escape:
-        mode = ViewMode;
-        this->grabKeyboard();
-        break;
+    //case Qt::Key_Escape:
+    //    mode = ViewMode;
+    //    this->grabKeyboard();
+    //    break;
     case Qt::Key_Q:
         if (has_ctrl)
             exit(0);
@@ -1300,7 +1343,9 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
 
     if (mode != ViewMode)
         return;
+
     // Priority: normal
+    // following key responses will not activate under ScriptMode or SelectMode. 
     switch (e->key())
     {
     case Qt::Key_Enter:
@@ -1396,23 +1441,23 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         this->UpdateSurface();
         break;
     // MODE
-    case Qt::Key_Colon:
-        mode = ScriptMode;
-        {
-            script_lineedit = new QLineEdit(this);
-            script_lineedit->grabKeyboard();
-            connect(script_lineedit, &QLineEdit::textChanged, this, [this]() {
-                update();
-            });
-            connect(script_lineedit, &QLineEdit::cursorPositionChanged, this, [this]() {
-                update();
-            });
-            connect(script_lineedit, &QLineEdit::returnPressed, this, [this]() {
-                RunScript();
-                update();
-            });
-        }
-        break;
+    //case Qt::Key_Colon:
+    //    mode = ScriptMode;
+    //    {
+    //        script_lineedit = new QLineEdit(this);
+    //        script_lineedit->grabKeyboard();
+    //        connect(script_lineedit, &QLineEdit::textChanged, this, [this]() {
+    //            update();
+    //        });
+    //        connect(script_lineedit, &QLineEdit::cursorPositionChanged, this, [this]() {
+    //            update();
+    //        });
+    //        connect(script_lineedit, &QLineEdit::returnPressed, this, [this]() {
+    //            RunScript();
+    //            update();
+    //        });
+    //    }
+    //    break;
 
 
     default:
@@ -1566,91 +1611,4 @@ void RenderingWidget::ApplyFlip(TriMesh& M, int i)
         point[i] = -point[i];
         M.set_point(v, point);
     }
-}
-
-void RenderingWidget::_PopScriptHistory()
-{
-    if (!script_history.empty() && !script_history_linecnt.empty() && !script_history_type.empty())
-    {
-        script_history.pop_back();
-        script_history_linecnt.pop_back();
-        script_history_type.pop_back();
-    }
-}
-
-void RenderingWidget::_InsertScriptHistory(const QString& str, ScriptHistoryType type)
-{
-    int linecnt = str.count("\n") + 1;
-    script_history.push_front(str);
-    script_history_linecnt.push_front(linecnt);
-    script_history_type.push_front(type);
-
-    // TODO
-    if (gui_config.get_bool("Script_Expire", true))
-    {
-        QTimer::singleShot(gui_config.get_int("Script_Expire_Time", 7500),
-            this, [this]() {
-            _PopScriptHistory();
-        });    
-    }
-
-    if (script_history.size() > 9)
-    {
-        script_history.pop_back();
-        script_history_linecnt.pop_back();
-        script_history_type.pop_back();
-    }
-}
-
-void RenderingWidget::_RunScriptLine(std::vector<QString> &script)
-{
-    if (script.empty())
-        return;
-
-    if (script[0] == "read")
-    {
-        if (script.size() != 3)
-        {
-            auto m = QString("require 3 segments but get %0.").arg(script.size());
-            msg.log(m, ERROR_MSG);
-            _InsertScriptHistory(m, ErrorType);
-            return;
-        }
-
-        auto type = script[1];
-        auto file = script[2];
-
-        if (type == "mesh")
-        {
-            ReadMeshFromFile(file);
-        }
-        else if (type == "pc" || type == "point cloud")
-        {
-            ReadPointCloudFromFile(file);
-        }
-        else if (type == "field")
-        {
-            ReadDistanceFieldFromFile(file);
-        }
-        else
-        {
-            auto m = QString("unknown segment %0.").arg(type);
-            msg.log(m, ERROR_MSG);
-            _InsertScriptHistory(m, ErrorType);
-            return;
-        }
-    }
-}
-
-void RenderingWidget::RunScript()
-{
-    if (mode != ScriptMode || script_lineedit == nullptr)
-        return;
-
-    _InsertScriptHistory(script_lineedit->text(), ScriptType);
-    auto script = ScriptLoader::parse(script_lineedit->text());
-    script_lineedit->clear();
-
-    // main
-    _RunScriptLine(script);
 }
