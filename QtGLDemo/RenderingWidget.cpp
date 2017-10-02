@@ -4,8 +4,6 @@
 #include "Vertex.h"
 #include "QTiming.h"
 #include "GlobalConfig.h"
-//#include "SurfaceSolutionEigen.h"
-//#include "SurfaceSolutionMatlab.h"
 #include "SurfaceSolutionNeo.h"
 
 #include <QFileInfo>

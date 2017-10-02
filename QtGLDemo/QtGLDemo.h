@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QtWidgets/QMainWindow>
-// #include "ui_QtGLDemo.h"
 #include "ConsoleMessageManager.h"
 #include "TextConfigLoader.h"
 #include "RenderingWidget.h"

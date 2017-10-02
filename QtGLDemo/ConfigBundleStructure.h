@@ -8,6 +8,11 @@ struct ConfigBundle
         bool slice_x{ true };
         bool slice_y{ false };
         bool slice_z{ false };
+        
+        enum { RemoveGreaterThan, RemoveLessThan, RemoveEqual, RemoveNonEqual }; 
+        bool slice_mesh{ false };
+        bool slice_pc{ false };
+        bool remove_policy{ RemoveGreaterThan };
     } slice_config;
 
     struct RenderConfig
