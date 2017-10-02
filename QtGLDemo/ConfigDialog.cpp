@@ -123,8 +123,8 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
         btnSlicingRemovePolicy->setMenu(menuPolicy);
         btnSlicingDirection->setFocusPolicy(Qt::NoFocus);
         btnSlicingRemovePolicy->setFocusPolicy(Qt::NoFocus);
-        btnSlicingDirection->setStyleSheet("QPushButton::menu-indicator{image:none;}");
-        btnSlicingRemovePolicy->setStyleSheet("QPushButton::menu-indicator{image:none;}");
+        //btnSlicingDirection->setStyleSheet("QPushButton::menu-indicator{image:none;}");
+        //btnSlicingRemovePolicy->setStyleSheet("QPushButton::menu-indicator{image:none;}");
 
         groupSlicingLayout->addWidget(checkEnableSlicing, 0, 0);
         groupSlicingLayout->addWidget(checkEnableSlicingMesh, 1, 0);
