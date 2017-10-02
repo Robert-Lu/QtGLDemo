@@ -207,7 +207,7 @@ void QtGLDemo::CreateAction()
     actViewConfig = new QAction(tr("&Configure ..."));
     actViewConfig->setShortcut(QKeySequence(tr("Ctrl+,")));
     connect(actViewConfig, &QAction::triggered, this, [this]() {
-        this->rendering_widget->SyncConfigBundle(ShowConfigDialog(ExtractConfigBundle()));
+        this->rendering_widget->SyncConfigBundle(ShowConfigDialog(config_bundle));
     });
 }
 
@@ -268,12 +268,12 @@ void QtGLDemo::CreateMenu()
     viewMenu->addSeparator();
     // View/Slice
     auto sliceMenu = viewMenu->addMenu(tr("Set &Slicing"));
-    sliceMenu->addAction(actViewSwitchEnableSlicing);
-    sliceMenu->addSeparator();
-    sliceMenu->addAction(actViewCheckSlicingDirectionX);
-    sliceMenu->addAction(actViewCheckSlicingDirectionY);
-    sliceMenu->addAction(actViewCheckSlicingDirectionZ);
-    sliceMenu->addSeparator();
+    //sliceMenu->addAction(actViewSwitchEnableSlicing);
+    //sliceMenu->addSeparator();
+    //sliceMenu->addAction(actViewCheckSlicingDirectionX);
+    //sliceMenu->addAction(actViewCheckSlicingDirectionY);
+    //sliceMenu->addAction(actViewCheckSlicingDirectionZ);
+    //sliceMenu->addSeparator();
     sliceMenu->addAction(actViewSwitchSlicingMaxDivision);
     // View/===
     viewMenu->addSeparator();

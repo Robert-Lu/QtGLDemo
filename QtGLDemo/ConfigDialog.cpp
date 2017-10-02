@@ -71,6 +71,72 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
     }
     gridLayout->addWidget(groupMaterial, 1, 0);
 
+    /**/
+
+    // Slicing
+    auto groupSlicing = new QGroupBox(tr("&Slicing"));
+    groupSlicing->setStyleSheet("QGroupBox::title { color: gray; } ");
+    {
+        auto groupSlicingLayout = new QGridLayout;
+        groupSlicingLayout->addWidget(new QLabel(tr("Enable")), 0, 1);
+        groupSlicingLayout->addWidget(new QLabel(tr("Remove Mesh")), 1, 1);
+        groupSlicingLayout->addWidget(new QLabel(tr("Remove PC")), 2, 1);
+
+        checkEnableSlicing = new QCheckBox;
+        checkEnableSlicingMesh = new QCheckBox;
+        checkEnableSlicingPC = new QCheckBox;
+        btnSlicingDirection = new QPushButton;
+        btnSlicingRemovePolicy = new QPushButton;
+
+        menuDirection = new QMenu;
+        menuDirection->addAction(tr("&X"), [this]() {
+            this->btnSlicingDirection->setText(tr("X"));
+            index_direction = 0;
+        });
+        menuDirection->addAction(tr("&Y"), [this]() {
+            this->btnSlicingDirection->setText(tr("Y"));
+            index_direction = 1;
+        });
+        menuDirection->addAction(tr("&Z"), [this]() {
+            this->btnSlicingDirection->setText(tr("Z"));
+            index_direction = 2;
+        });
+        menuPolicy = new QMenu;
+        menuPolicy->addAction(tr("> "), [this]() {
+            this->btnSlicingRemovePolicy->setText(tr("> "));
+            index_policy = 0;
+        });
+        menuPolicy->addAction(tr("< "), [this]() {
+            this->btnSlicingRemovePolicy->setText(tr("< "));
+            index_policy = 1;
+        });
+        menuPolicy->addAction(tr("=="), [this]() {
+            this->btnSlicingRemovePolicy->setText(tr("=="));
+            index_policy = 2;
+        });
+        menuPolicy->addAction(tr("!="), [this]() {
+            this->btnSlicingRemovePolicy->setText(tr("!="));
+            index_policy = 3;
+        });
+
+        btnSlicingDirection->setMenu(menuDirection);
+        btnSlicingRemovePolicy->setMenu(menuPolicy);
+        btnSlicingDirection->setFocusPolicy(Qt::NoFocus);
+        btnSlicingRemovePolicy->setFocusPolicy(Qt::NoFocus);
+        btnSlicingDirection->setStyleSheet("QPushButton::menu-indicator{image:none;}");
+        btnSlicingRemovePolicy->setStyleSheet("QPushButton::menu-indicator{image:none;}");
+
+        groupSlicingLayout->addWidget(checkEnableSlicing, 0, 0);
+        groupSlicingLayout->addWidget(checkEnableSlicingMesh, 1, 0);
+        groupSlicingLayout->addWidget(checkEnableSlicingPC, 2, 0);
+        groupSlicingLayout->addWidget(btnSlicingDirection, 3, 1);
+        groupSlicingLayout->addWidget(btnSlicingRemovePolicy, 4, 1);
+
+        groupSlicing->setLayout(groupSlicingLayout);
+    }
+    gridLayout->addWidget(groupSlicing, 1, 1);
+    /**/
+
     QPushButton *closeButton = new QPushButton(tr("&Cancel"));
     connect(closeButton, &QAbstractButton::clicked, this, &QWidget::close);
     QPushButton *okButton = new QPushButton(tr("&OK"));
@@ -122,6 +188,43 @@ void ConfigDialog::initContentFromConfig()
     lineDiffuse->setText(tr("%0").arg(config.render_config.material.diffuse));
     lineSpecular->setText(tr("%0").arg(config.render_config.material.specular));
     lineShininess->setText(tr("%0").arg(config.render_config.material.shininess));
+
+    checkEnableSlicing->setChecked(config.slice_config.use_slice);
+    checkEnableSlicingMesh->setChecked(config.slice_config.slice_mesh);
+    checkEnableSlicingPC->setChecked(config.slice_config.slice_pc);
+
+    if (config.slice_config.slice_x)
+    {
+        index_direction = 0;
+        btnSlicingDirection->setText(tr("X"));
+    }
+    else if (config.slice_config.slice_y)
+    {
+        index_direction = 1;
+        btnSlicingDirection->setText(tr("Y"));
+    }
+    else
+    {
+        index_direction = 2;
+        btnSlicingDirection->setText(tr("Z"));
+    }
+
+    index_policy = static_cast<int>(config.slice_config.remove_policy);
+    switch (index_policy)
+    {
+    case 0:
+        btnSlicingRemovePolicy->setText(tr("> "));
+        break;
+    case 1:
+        btnSlicingRemovePolicy->setText(tr("< "));
+        break;
+    case 2:
+        btnSlicingRemovePolicy->setText(tr("=="));
+        break;
+    case 3:
+        btnSlicingRemovePolicy->setText(tr("!="));
+        break;
+    }
 }
 
 void ConfigDialog::setConfigFromContent()
@@ -141,4 +244,13 @@ void ConfigDialog::setConfigFromContent()
     config.render_config.material.diffuse = lineDiffuse->text().toFloat();
     config.render_config.material.specular = lineSpecular->text().toFloat();
     config.render_config.material.shininess = lineShininess->text().toFloat();
+
+    config.slice_config.use_slice = checkEnableSlicing->isChecked();
+    config.slice_config.slice_mesh = checkEnableSlicingMesh->isChecked();
+    config.slice_config.slice_pc = checkEnableSlicingPC->isChecked();
+    config.slice_config.slice_x = index_direction == 0;
+    config.slice_config.slice_y = index_direction == 1;
+    config.slice_config.slice_z = index_direction == 2;
+
+    config.slice_config.remove_policy = static_cast<ConfigBundle::SliceConfig::Policy>(index_policy);
 }

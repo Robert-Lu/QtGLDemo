@@ -21,7 +21,7 @@
 
 RenderingWidget::RenderingWidget(TextConfigLoader &_gui_config, ConsoleMessageManager &_msg, ConfigBundle &cb, QWidget *parent)
     : QOpenGLWidget(parent), msg(_msg), slicing_position(0.0f), config_bundle(cb),
-dis_field(nullptr), ss(nullptr), mode{ ViewMode }, gui_config(_gui_config),
+dis_field(nullptr), ss(nullptr), mode{ ViewMode }, gui_config(_gui_config), tagSlicingChanged(false),
 buffer_need_update_mesh(true), buffer_need_update_pc(true), 
 buffer_need_update_base(true), buffer_need_update_slice(true),
 render_config{ RENDER_CONFIG_FILENAME }, algorithm_config{ ALGORITHM_CONFIG_FILENAME }
@@ -668,6 +668,11 @@ void RenderingWidget::SyncConfigBundle(ConfigBundle &c)
 {
     config_bundle = c;
     UpdateSlicingPlane();
+    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    buffer_need_update_pc = true;
+    GenerateBufferFromPointCloud(pc, vertex_data_pc);
+    buffer_need_update_mesh = true;
+    update();
 }
 
 void RenderingWidget::UpdateSlicingPlane(int max_div_set)
@@ -1289,6 +1294,7 @@ void RenderingWidget::mouseMoveEvent(QMouseEvent* e)
     case Qt::RightButton:
         slicing_position += (-2.5*GLfloat(e->x() - current_position_.x()) / GLfloat(width())) * multiplier;
         slicing_position += (+2.5*GLfloat(e->y() - current_position_.y()) / GLfloat(width())) * multiplier;
+        tagSlicingChanged = true;
         UpdateSlicingPlane();
     default:
         break;
@@ -1302,6 +1308,25 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
 {
     setCursor(Qt::ArrowCursor);
     current_position_ = e->pos();
+
+    if (tagSlicingChanged)
+    {
+        if (config_bundle.slice_config.use_slice)
+        {
+            if (config_bundle.slice_config.slice_mesh)
+            {
+                GenerateBufferFromMesh(mesh, vertex_data_mesh);
+                buffer_need_update_mesh = true;
+            }
+            if (config_bundle.slice_config.slice_pc)
+            {
+                GenerateBufferFromPointCloud(pc, vertex_data_pc);
+                buffer_need_update_pc = true;
+            }
+        }
+
+        tagSlicingChanged = false;
+    }
 }
 
 void RenderingWidget::wheelEvent(QWheelEvent* e)
@@ -1504,16 +1529,54 @@ void RenderingWidget::TranslateCoodinate(TriMesh& M)
 void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& D)
 {
     OpenMesh::Vec3f color = mesh_color;
-    OpenMesh::Vec3f red{ 1.0f, 0.0f, 0.0f };
-    OpenMesh::Vec3f orange{ 1.0f, 0.5f, 0.0f };
-    OpenMesh::Vec3f yellow{ 1.0f, 1.0f, 0.0f };
-    OpenMesh::Vec3f green{ 0.0f, 1.0f, 0.0f };
-    OpenMesh::Vec3f aoi{ 0.0f, 1.0f, 1.0f };
-    OpenMesh::Vec3f blue{ 0.0f, 0.0f, 1.0f };
+    //OpenMesh::Vec3f red{ 1.0f, 0.0f, 0.0f };
+    //OpenMesh::Vec3f orange{ 1.0f, 0.5f, 0.0f };
+    //OpenMesh::Vec3f yellow{ 1.0f, 1.0f, 0.0f };
+    //OpenMesh::Vec3f green{ 0.0f, 1.0f, 0.0f };
+    //OpenMesh::Vec3f aoi{ 0.0f, 1.0f, 1.0f };
+    //OpenMesh::Vec3f blue{ 0.0f, 0.0f, 1.0f };
 
     D.clear();
     for (auto f_it : M.faces())
     {
+        auto pos = mesh.calc_face_centroid(f_it);
+        if (config_bundle.slice_config.slice_mesh &&
+            config_bundle.slice_config.use_slice)
+        {
+            int idmain;
+            if (config_bundle.slice_config.slice_x)
+                idmain = 0;
+            else if (config_bundle.slice_config.slice_y)
+                idmain = 1;
+            else
+                idmain = 2;
+
+            if (config_bundle.slice_config.remove_policy == 
+                ConfigBundle::SliceConfig::Policy::RemoveGreaterThan)
+            {
+                if (pos[idmain] > slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveLessThan)
+            {
+                if (pos[idmain] < slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) < 0.1f)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveNonEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) > 0.1f)
+                    continue;
+            }
+        }
+
         auto fv_it = M.fv_iter(f_it);
 
         for (; fv_it; ++fv_it)
@@ -1521,23 +1584,24 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
             auto vh = *fv_it;
             auto pos = M.point(vh);
             auto nor = M.normal(vh);
-            int tag = -1;
-            if (ss != nullptr)
-                tag = ss->tagged(vh);
 
-            if (tag == 1)
-                D.push_back({ pos, red, nor });
-            else if (tag == 2)
-                D.push_back({ pos, orange, nor });
-            else if (tag == 3)
-                D.push_back({ pos, yellow, nor });
-            else if (tag == 4)
-                D.push_back({ pos, green, nor });
-            else if (tag == 5)
-                D.push_back({ pos, aoi, nor });
-            else if (tag == 6)
-                D.push_back({ pos, blue, nor });
-            else
+            //int tag = -1;
+            //if (ss != nullptr)
+            //    tag = ss->tagged(vh);
+
+            //if (tag == 1)
+            //    D.push_back({ pos, red, nor });
+            //else if (tag == 2)
+            //    D.push_back({ pos, orange, nor });
+            //else if (tag == 3)
+            //    D.push_back({ pos, yellow, nor });
+            //else if (tag == 4)
+            //    D.push_back({ pos, green, nor });
+            //else if (tag == 5)
+            //    D.push_back({ pos, aoi, nor });
+            //else if (tag == 6)
+            //    D.push_back({ pos, blue, nor });
+            //else
                 D.push_back({ pos, color, nor });
         }
     }
@@ -1551,6 +1615,43 @@ void RenderingWidget::GenerateBufferFromPointCloud(TriMesh& M, std::vector<Verte
     for (auto vh : M.vertices())
     {
         auto pos = M.point(vh);
+        if (config_bundle.slice_config.slice_pc &&
+            config_bundle.slice_config.use_slice)
+        {
+            int idmain;
+            if (config_bundle.slice_config.slice_x)
+                idmain = 0;
+            else if (config_bundle.slice_config.slice_y)
+                idmain = 1;
+            else
+                idmain = 2;
+
+            if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveGreaterThan)
+            {
+                if (pos[idmain] > slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveLessThan)
+            {
+                if (pos[idmain] < slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) < 0.1f)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveNonEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) > 0.1f)
+                    continue;
+            }
+        }
+
         D.push_back({ pos, color, { 0.0f, 0.0f, 1.0f } });
     }
 }

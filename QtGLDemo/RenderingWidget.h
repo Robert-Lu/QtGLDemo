@@ -142,6 +142,7 @@ private:
 
     // UI control temp
     QPoint current_position_;
+    bool tagSlicingChanged;
 
     // Helper Functions
     static void DrawCoord(std::vector<Vertex2D> &, float len = 1.0f);

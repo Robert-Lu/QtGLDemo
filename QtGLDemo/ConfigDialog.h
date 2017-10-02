@@ -34,6 +34,17 @@ private:
     QLineEdit *lineSpecular;
     QLineEdit *lineShininess;
 
+    QCheckBox *checkEnableSlicing;
+    QCheckBox *checkEnableSlicingMesh;
+    QCheckBox *checkEnableSlicingPC;
+    QPushButton *btnSlicingDirection;
+    QPushButton *btnSlicingRemovePolicy;
+    QMenu     *menuDirection;
+    QMenu     *menuPolicy;
+    int        index_direction;
+    int        index_policy;
+
+
     void initContentFromConfig();
     void setConfigFromContent();
 };
