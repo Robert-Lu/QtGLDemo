@@ -1602,7 +1602,7 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
             //else if (tag == 6)
             //    D.push_back({ pos, blue, nor });
             //else
-                D.push_back({ pos, color, nor });
+            D.push_back({ pos, color, nor });
         }
     }
 }

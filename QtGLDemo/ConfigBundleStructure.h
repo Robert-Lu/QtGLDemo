@@ -31,7 +31,7 @@ struct ConfigBundle
         bool point_cloud_visible{ true };
         bool slice_visible{ true };
         float mesh_alpha{ 1.0f };
-        float point_cloud_alpha{ 0.33f };
+        float point_cloud_alpha{ 1.0f };
         float slice_alpha{ 0.5f };
     } render_config;
 };

@@ -71,8 +71,6 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
     }
     gridLayout->addWidget(groupMaterial, 1, 0);
 
-    /**/
-
     // Slicing
     auto groupSlicing = new QGroupBox(tr("&Slicing"));
     groupSlicing->setStyleSheet("QGroupBox::title { color: gray; } ");
@@ -135,7 +133,6 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
         groupSlicing->setLayout(groupSlicingLayout);
     }
     gridLayout->addWidget(groupSlicing, 1, 1);
-    /**/
 
     QPushButton *closeButton = new QPushButton(tr("&Cancel"));
     connect(closeButton, &QAbstractButton::clicked, this, &QWidget::close);
