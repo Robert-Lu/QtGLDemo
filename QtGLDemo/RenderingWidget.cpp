@@ -4,7 +4,7 @@
 #include "Vertex.h"
 #include "QTiming.h"
 #include "GlobalConfig.h"
-#include "SurfaceSolutionNeo.h"
+#include "SurfaceSolutionDual.h"
 
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -136,9 +136,9 @@ inline bool fileExists(QString path) {
 
 void RenderingWidget::ClearMesh()
 {
-    mesh.clear();
+    mesh_inner.clear();
 
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
     buffer_need_update_mesh = true;
 
     QString m{ "clear mesh." };
@@ -146,7 +146,7 @@ void RenderingWidget::ClearMesh()
     _InsertScriptHistory(m, InfoType);
 }
 
-void RenderingWidget::ReadMeshFromFile()
+void RenderingWidget::ReadMeshInnerFromFile()
 {
     // get file name.
     QString filename = QFileDialog::
@@ -161,10 +161,28 @@ void RenderingWidget::ReadMeshFromFile()
         return;
     }
 
-    ReadMeshFromFile(filename);
+    ReadMeshFromFile(filename, mesh_inner);
 }
 
-void RenderingWidget::ReadMeshFromFile(const QString &filename)
+void RenderingWidget::ReadMeshOuterFromFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getOpenFileName(this, tr("Read Mesh"),
+            "./mesh", tr("Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Read from file Canceled.")));
+        msg.log(tr("Read from file Canceled."), INFO_MSG);
+        return;
+    }
+
+    ReadMeshFromFile(filename, mesh_outer);
+}
+
+void RenderingWidget::ReadMeshFromFile(const QString &filename, TriMesh &mesh)
 {
     // check valid.
     if (filename.isEmpty() || !fileExists(filename))
@@ -213,7 +231,7 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename)
     }
 
     // extract every vertex by face-vertex circulator.
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -231,16 +249,16 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename)
 
 void RenderingWidget::GenerateSphereMesh()
 {
-    SurfaceSolutionBase::BuildSphere(mesh, 
+    SurfaceSolutionBase::BuildSphere(mesh_inner, 
         algorithm_config.get_float("Shpere_Radio", 1.0f),
         algorithm_config.get_int("Shpere_Max_Division", 5), true);
     // Update the vertex normals
-    mesh.request_vertex_normals();  
-    mesh.request_face_normals();
-    mesh.update_normals();
+    mesh_inner.request_vertex_normals();  
+    mesh_inner.request_face_normals();
+    mesh_inner.update_normals();
 
     // Extract every vertex by face-vertex circulator.
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -403,7 +421,7 @@ void RenderingWidget::ReadDistanceFieldFromFile(const QString &filename)
     msg.reset_indent();
 }
 
-void RenderingWidget::SaveMeshToFile()
+void RenderingWidget::SaveMeshInnerToFile()
 {
     // get file name.
     QString filename = QFileDialog::
@@ -418,7 +436,25 @@ void RenderingWidget::SaveMeshToFile()
         return;
     }
 
-    OpenMesh::IO::write_mesh(mesh, filename.toStdString());
+    OpenMesh::IO::write_mesh(mesh_inner, filename.toStdString());
+}
+
+void RenderingWidget::SaveMeshOuterToFile()
+{
+    // get file name.
+    QString filename = QFileDialog::
+        getSaveFileName(this, tr("Save Mesh"),
+            "./mesh", tr("Mesh Files (*.obj)"));
+
+    // check valid.
+    if (filename.isEmpty())
+    {
+        emit(StatusInfo(tr("Save to file Canceled.")));
+        msg.log(tr("Save to file Canceled."), INFO_MSG);
+        return;
+    }
+
+    OpenMesh::IO::write_mesh(mesh_outer, filename.toStdString());
 }
 
 void RenderingWidget::SavePointCloudToFile()
@@ -477,16 +513,16 @@ void RenderingWidget::SaveDistanceFieldToFile()
 
 void RenderingWidget::ApplyUnifyForMesh()
 {
-    if (mesh.vertices_empty())
+    if (mesh_inner.vertices_empty())
     {
         emit(StatusInfo(tr("Unify on Empty Space.")));
         msg.log(tr("Unify on Empty Space."), INFO_MSG);
         return;
     }
 
-    ApplyUnify(mesh);
+    ApplyUnify(mesh_inner);
 
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -515,16 +551,16 @@ void RenderingWidget::ApplyUnifyForPointCloud()
 
 void RenderingWidget::ApplyFlipForMesh(int i)
 {
-    if (mesh.vertices_empty())
+    if (mesh_inner.vertices_empty())
     {
         emit(StatusInfo(tr("Flip on Empty Space.")));
         msg.log(tr("Flip on Empty Space."), INFO_MSG);
         return;
     }
 
-    ApplyFlip(mesh, i);
+    ApplyFlip(mesh_inner, i);
 
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
 
     buffer_need_update_mesh = true;
 
@@ -643,7 +679,7 @@ void RenderingWidget::ChangeColorMesh()
     GLfloat b = (color.blue()) / 255.0f;
     mesh_color = { r, g, b };
 
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
     buffer_need_update_mesh = true;
     update();
 }
@@ -668,7 +704,7 @@ void RenderingWidget::SyncConfigBundle(ConfigBundle &c)
 {
     config_bundle = c;
     UpdateSlicingPlane();
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
     buffer_need_update_pc = true;
     GenerateBufferFromPointCloud(pc, vertex_data_pc);
     buffer_need_update_mesh = true;
@@ -844,7 +880,7 @@ void RenderingWidget::UpdateSlicingPlane(int max_div_set)
 
 void RenderingWidget::UpdateSurface(int iter) // default = 1
 {
-    if (mesh.vertices_empty())
+    if (mesh_inner.vertices_empty() || mesh_outer.vertices_empty())
     {
         emit(StatusInfo(tr("Update Canceled, Surface is Empty.")));
         msg.log(tr("Update Canceled, Surface is Empty."), INFO_MSG);
@@ -863,10 +899,11 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
         // initialize the Surface Solution.
         QString method = algorithm_config.get_string("SurfaceUpdateMethod", "Neo");
 
-        if (method == "Matlab")
-            ss = new SurfaceSolutionMatlab(mesh, dis_field, msg, algorithm_config);
-        else if (method == "Neo")
-            ss = new SurfaceSolutionNeo(mesh, dis_field, msg, algorithm_config);
+        /*if (method == "Matlab")
+            ss = new SurfaceSolutionMatlab(mesh_inner, dis_field, msg, algorithm_config);
+        else */
+        if (method == "Neo")
+            ss = new SurfaceSolutionNeo(mesh_inner, mesh_outer, dis_field, msg, algorithm_config);
     }
 
     algorithm_config.reload();
@@ -874,9 +911,9 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
     for (int i = 0; i < iter; i++)
         ss->update();
 
-    mesh.update_normals();
+    mesh_inner.update_normals();
 
-    GenerateBufferFromMesh(mesh, vertex_data_mesh);
+    GenerateBufferFromMesh(vertex_data_mesh);
     buffer_need_update_mesh = true;
     update();
 }
@@ -1107,20 +1144,35 @@ void RenderingWidget::paintGL()
 
         vao_mesh.bind();
         {
-            if (config_bundle.render_config.mesh_visible)
+            if (config_bundle.render_config.mesh_inner_visible)
             {
                 shader_program_basic_light->setUniformValue("lightDirFrom", camera.direction());
                 shader_program_basic_light->setUniformValue("viewPos", camera.position());
                 shader_program_basic_light->setUniformValue("model", mat_model);
                 shader_program_basic_light->setUniformValue("view", camera.view_mat());
                 shader_program_basic_light->setUniformValue("projection", mat_projection);
-                shader_program_basic_light->setUniformValue("alpha", config_bundle.render_config.mesh_alpha);
+                shader_program_basic_light->setUniformValue("alpha", config_bundle.render_config.mesh_inner_alpha);
                 const auto &material = config_bundle.render_config.material;
                 shader_program_basic_light->setUniformValue("material.ambient", material.ambient);
                 shader_program_basic_light->setUniformValue("material.diffuse", material.diffuse);
                 shader_program_basic_light->setUniformValue("material.specular", material.specular);
                 shader_program_basic_light->setUniformValue("material.shininess", material.shininess);
-                glDrawArrays(GL_TRIANGLES, 0, vertex_data_mesh.size());
+                glDrawArrays(GL_TRIANGLES, 0, vertex_data_mesh_inner_size);
+            }
+            if (config_bundle.render_config.mesh_outer_visible)
+            {
+                shader_program_basic_light->setUniformValue("lightDirFrom", camera.direction());
+                shader_program_basic_light->setUniformValue("viewPos", camera.position());
+                shader_program_basic_light->setUniformValue("model", mat_model);
+                shader_program_basic_light->setUniformValue("view", camera.view_mat());
+                shader_program_basic_light->setUniformValue("projection", mat_projection);
+                shader_program_basic_light->setUniformValue("alpha", config_bundle.render_config.mesh_outer_alpha);
+                const auto &material = config_bundle.render_config.material;
+                shader_program_basic_light->setUniformValue("material.ambient", material.ambient);
+                shader_program_basic_light->setUniformValue("material.diffuse", material.diffuse);
+                shader_program_basic_light->setUniformValue("material.specular", material.specular);
+                shader_program_basic_light->setUniformValue("material.shininess", material.shininess);
+                glDrawArrays(GL_TRIANGLES, vertex_data_mesh_inner_size, vertex_data_mesh.size());
             }
         }
         vao_mesh.release();
@@ -1315,7 +1367,7 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
         {
             if (config_bundle.slice_config.slice_mesh)
             {
-                GenerateBufferFromMesh(mesh, vertex_data_mesh);
+                GenerateBufferFromMesh(vertex_data_mesh);
                 buffer_need_update_mesh = true;
             }
             if (config_bundle.slice_config.slice_pc)
@@ -1526,8 +1578,121 @@ void RenderingWidget::TranslateCoodinate(TriMesh& M)
     }
 }
 
+void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
+{
+    OpenMesh::Vec3f color = mesh_color;
+
+    D.clear();
+    for (auto f_it : mesh_inner.faces())
+    {
+        auto pos = mesh_inner.calc_face_centroid(f_it);
+        if (config_bundle.slice_config.slice_mesh &&
+            config_bundle.slice_config.use_slice)
+        {
+            int idmain;
+            if (config_bundle.slice_config.slice_x)
+                idmain = 0;
+            else if (config_bundle.slice_config.slice_y)
+                idmain = 1;
+            else
+                idmain = 2;
+
+            if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveGreaterThan)
+            {
+                if (pos[idmain] > slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveLessThan)
+            {
+                if (pos[idmain] < slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) < 0.1f)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveNonEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) > 0.1f)
+                    continue;
+            }
+        }
+
+        auto fv_it = mesh_inner.fv_iter(f_it);
+
+        for (; fv_it; ++fv_it)
+        {
+            auto vh = *fv_it;
+            auto pos = mesh_inner.point(vh);
+            auto nor = mesh_inner.normal(vh);
+
+            D.push_back({ pos, color, nor });
+        }
+    }
+
+    vertex_data_mesh_inner_size = D.size();
+
+    for (auto f_it : mesh_outer.faces())
+    {
+        auto pos = mesh_outer.calc_face_centroid(f_it);
+        if (config_bundle.slice_config.slice_mesh &&
+            config_bundle.slice_config.use_slice)
+        {
+            int idmain;
+            if (config_bundle.slice_config.slice_x)
+                idmain = 0;
+            else if (config_bundle.slice_config.slice_y)
+                idmain = 1;
+            else
+                idmain = 2;
+
+            if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveGreaterThan)
+            {
+                if (pos[idmain] > slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveLessThan)
+            {
+                if (pos[idmain] < slicing_position)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) < 0.1f)
+                    continue;
+            }
+            else if (config_bundle.slice_config.remove_policy ==
+                ConfigBundle::SliceConfig::Policy::RemoveNonEqual)
+            {
+                if (abs(pos[idmain] - slicing_position) > 0.1f)
+                    continue;
+            }
+        }
+
+        auto fv_it = mesh_outer.fv_iter(f_it);
+
+        for (; fv_it; ++fv_it)
+        {
+            auto vh = *fv_it;
+            auto pos = mesh_outer.point(vh);
+            auto nor = mesh_outer.normal(vh);
+
+            D.push_back({ pos, color, nor });
+        }
+    }
+}
+
 void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& D)
 {
+    throw "up";
     OpenMesh::Vec3f color = mesh_color;
     //OpenMesh::Vec3f red{ 1.0f, 0.0f, 0.0f };
     //OpenMesh::Vec3f orange{ 1.0f, 0.5f, 0.0f };
@@ -1539,7 +1704,7 @@ void RenderingWidget::GenerateBufferFromMesh(TriMesh& M, std::vector<Vertex3D>& 
     D.clear();
     for (auto f_it : M.faces())
     {
-        auto pos = mesh.calc_face_centroid(f_it);
+        auto pos = mesh_inner.calc_face_centroid(f_it);
         if (config_bundle.slice_config.slice_mesh &&
             config_bundle.slice_config.use_slice)
         {

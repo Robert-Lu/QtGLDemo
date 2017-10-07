@@ -36,7 +36,7 @@ QtGLDemo::QtGLDemo(ConsoleMessageManager &_msg, TextConfigLoader &_gui_config, Q
 
 void QtGLDemo::File_Open_Mesh()
 {
-    this->rendering_widget->ReadMeshFromFile();
+    this->rendering_widget->ReadMeshInnerFromFile();
     msg.log("Main Window File_Open_Mesh()", TRIVIAL_MSG);
 }
 
@@ -48,7 +48,7 @@ void QtGLDemo::File_Open_PointCloud()
 
 void QtGLDemo::File_Save()
 {
-    this->rendering_widget->SaveMeshToFile();
+    this->rendering_widget->SaveMeshInnerToFile();
     msg.log("Main Window Save()", TRIVIAL_MSG);
 }
 
@@ -72,24 +72,38 @@ void QtGLDemo::SetStatusInfo(const QString& t)
 void QtGLDemo::CreateAction()
 {
     // File
-    actFileOpenMesh = new QAction(tr("&Mesh"));
-    actFileOpenMesh->setShortcut(tr("Ctrl+O,Ctrl+M"));
-    connect(actFileOpenMesh, SIGNAL(triggered()), this, SLOT(File_Open_Mesh()));
+    actFileOpenMeshInner = new QAction(tr("Mesh(&Inner)"));
+    actFileOpenMeshInner->setShortcut(tr("Ctrl+O,Ctrl+M"));
+    connect(actFileOpenMeshInner, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ReadMeshInnerFromFile();
+    });
+
+    actFileOpenMeshOuter = new QAction(tr("Mesh(&Outer)"));
+    actFileOpenMeshOuter->setShortcut(tr("Ctrl+O,Ctrl+Shift+M"));
+    connect(actFileOpenMeshOuter, &QAction::triggered, this, [this]() {
+        this->rendering_widget->ReadMeshOuterFromFile();
+    });
 
     actFileOpenPointCloud = new QAction(tr("&Point Cloud"));
     actFileOpenPointCloud->setShortcut(tr("Ctrl+O,Ctrl+P"));
     connect(actFileOpenPointCloud, SIGNAL(triggered()), this, SLOT(File_Open_PointCloud()));
 
     actFileOpenDistanceField = new QAction(tr("Distance Field"));
-    actFileOpenDistanceField->setShortcut(tr("Ctrl+O,Ctrl+D"));
+    actFileOpenDistanceField->setShortcut(tr("Ctrl+O,Ctrl+F"));
     connect(actFileOpenDistanceField, &QAction::triggered, this, [this]() {
         this->rendering_widget->ReadDistanceFieldFromFile();
     });
 
-    actFileSaveMesh = new QAction(tr("&Mesh"));
-    actFileSaveMesh->setShortcut(tr("Ctrl+S,Ctrl+M"));
-    connect(actFileSaveMesh, &QAction::triggered, this, [this]() {
-        this->rendering_widget->SaveMeshToFile();
+    actFileSaveMeshInner = new QAction(tr("Mesh(&Inner)"));
+    actFileSaveMeshInner->setShortcut(tr("Ctrl+S,Ctrl+M"));
+    connect(actFileSaveMeshInner, &QAction::triggered, this, [this]() {
+        this->rendering_widget->SaveMeshInnerToFile();
+    });
+
+    actFileSaveMeshOuter = new QAction(tr("Mesh(&Outer)"));
+    actFileSaveMeshOuter->setShortcut(tr("Ctrl+S,Ctrl+Shift+M"));
+    connect(actFileSaveMeshOuter, &QAction::triggered, this, [this]() {
+        this->rendering_widget->SaveMeshOuterToFile();
     });
 
     actFileSavePointCloud = new QAction(tr("&Point Cloud"));
@@ -218,7 +232,8 @@ void QtGLDemo::CreateMenu()
     // File/Open
     auto openMenu = fileMenu->addMenu(tr("&Open"));
     // File/Open/Mesh
-    openMenu->addAction(actFileOpenMesh);
+    openMenu->addAction(actFileOpenMeshInner);
+    openMenu->addAction(actFileOpenMeshOuter);
     // File/Open/Point Cloud
     openMenu->addAction(actFileOpenPointCloud);
     // File/Open/Distance Field
@@ -226,7 +241,8 @@ void QtGLDemo::CreateMenu()
     // File/Save
     auto saveMenu = fileMenu->addMenu(tr("&Save"));
     // File/Save/Mesh
-    saveMenu->addAction(actFileSaveMesh);
+    saveMenu->addAction(actFileSaveMeshInner);
+    saveMenu->addAction(actFileSaveMeshOuter);
     // File/Save/Point Cloud
     saveMenu->addAction(actFileSavePointCloud);
     // File/Save/Distance Field

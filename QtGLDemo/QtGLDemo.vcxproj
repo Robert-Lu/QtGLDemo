@@ -120,7 +120,7 @@
     <ClCompile Include="SurfaceSolutionBase.cpp" />
     <ClCompile Include="SurfaceSolutionEigen.cpp" />
     <ClCompile Include="SurfaceSolutionMatlab.cpp" />
-    <ClCompile Include="SurfaceSolutionNeo.cpp" />
+    <ClCompile Include="SurfaceSolutionDual.cpp" />
     <ClCompile Include="SurfaceSolution__BuildSphere.cpp" />
     <ClCompile Include="TextConfigLoader.cpp" />
   </ItemGroup>
@@ -150,7 +150,7 @@
     <ClInclude Include="SurfaceSolutionBase.h" />
     <ClInclude Include="SurfaceSolutionEigen.h" />
     <ClInclude Include="SurfaceSolutionMatlab.h" />
-    <ClInclude Include="SurfaceSolutionNeo.h" />
+    <ClInclude Include="SurfaceSolutionDual.h" />
     <ClInclude Include="Vertex.h" />
     <CustomBuild Include="RenderingWidget.h">
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(QTDIR)\bin\moc.exe;%(FullPath)</AdditionalInputs>

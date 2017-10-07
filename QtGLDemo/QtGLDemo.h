@@ -26,10 +26,12 @@ private:
     TextConfigLoader        &gui_config;
 
     // Actions
-    QAction *actFileOpenMesh;
+    QAction *actFileOpenMeshInner;
+    QAction *actFileOpenMeshOuter;
     QAction *actFileOpenPointCloud;
     QAction *actFileOpenDistanceField;
-    QAction *actFileSaveMesh;
+    QAction *actFileSaveMeshInner;
+    QAction *actFileSaveMeshOuter;
     QAction *actFileSavePointCloud;
     QAction *actFileSaveDistanceField;
 

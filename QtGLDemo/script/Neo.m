@@ -19,9 +19,9 @@
 % % Bottom = 1 - Upper;
 % % V_prime = V_prime .* [Upper, Upper, Upper] + V .* [Bottom, Bottom, Bottom];
 
-F = area_press * Area * Intensity * N;
+F_Inner = area_press * Area_Inner * Its_Inner * N_Inner;
 
-LHS = [w_L * Lap; (w_P + w_F) * Mass];
-RHS = [zeros(num_verts, 3); w_P * Mass * V + w_F * (Mass * V + F)];
+LHS = [w_L * Lap_Inner; (w_P + w_F) * Mass_Inner];
+RHS = [zeros(size_Inner, 3); w_P * Mass_Inner * V_Inner + w_F * (Mass_Inner * V_Inner + F_Inner)];
 
 V_prime = LHS \ RHS;

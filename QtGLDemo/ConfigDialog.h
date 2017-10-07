@@ -18,11 +18,13 @@ private:
     ConfigBundle &config;
 
     // data retrieving
-    QCheckBox *checkMesh;
+    QCheckBox *checkMeshInner;
+    QCheckBox *checkMeshOuter;
     QCheckBox *checkPointCloud;
     QCheckBox *checkSlice;
 
-    QLineEdit *lineMeshAlpha;
+    QLineEdit *lineMeshInnerAlpha;
+    QLineEdit *lineMeshOuterAlpha;
     QLineEdit *linePointCloudAlpha;
     QLineEdit *lineSliceAlpha;
 

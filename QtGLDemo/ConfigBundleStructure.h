@@ -27,10 +27,12 @@ struct ConfigBundle
             float shininess{ 32.0f };
         } material;
 
-        bool mesh_visible{ true };
+        bool mesh_inner_visible{ true };
+        bool mesh_outer_visible{ true };
         bool point_cloud_visible{ true };
         bool slice_visible{ true };
-        float mesh_alpha{ 1.0f };
+        float mesh_inner_alpha{ 1.0f };
+        float mesh_outer_alpha{ 1.0f };
         float point_cloud_alpha{ 1.0f };
         float slice_alpha{ 0.5f };
     } render_config;

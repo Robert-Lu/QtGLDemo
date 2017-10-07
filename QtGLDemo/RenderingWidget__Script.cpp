@@ -54,9 +54,9 @@ void RenderingWidget::_RunScriptLine(std::vector<QString> &script, int recursion
         auto type = script[1];
         auto file = script[2];
 
-        if (type == "mesh")
+        if (type == "mesh_inner")
         {
-            ReadMeshFromFile(file);
+            ReadMeshFromFile(file, mesh_inner);
         }
         else if (type == "pc" || type == "point cloud")
         {

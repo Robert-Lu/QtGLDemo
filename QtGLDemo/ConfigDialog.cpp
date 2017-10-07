@@ -12,21 +12,26 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
     groupAlpha->setStyleSheet("QGroupBox::title { color: gray; } ");
     {
         auto groupAlphaLayout = new QGridLayout;
-        checkMesh = new QCheckBox;
+        checkMeshInner = new QCheckBox;
+        checkMeshOuter = new QCheckBox;
         checkPointCloud = new QCheckBox;
         checkSlice = new QCheckBox;
-        groupAlphaLayout->addWidget(checkMesh, 0, 0);
-        groupAlphaLayout->addWidget(checkPointCloud, 1, 0);
-        groupAlphaLayout->addWidget(checkSlice, 2, 0);
-        groupAlphaLayout->addWidget(new QLabel(tr("Surface:")), 0, 1);
-        groupAlphaLayout->addWidget(new QLabel(tr("Point Cloud:")), 1, 1);
-        groupAlphaLayout->addWidget(new QLabel(tr("Slicing Plane:")), 2, 1);
-        lineMeshAlpha = new QLineEdit;
+        groupAlphaLayout->addWidget(checkMeshInner,     0, 0);
+        groupAlphaLayout->addWidget(checkMeshOuter,     1, 0);
+        groupAlphaLayout->addWidget(checkPointCloud,    2, 0);
+        groupAlphaLayout->addWidget(checkSlice,         3, 0);
+        groupAlphaLayout->addWidget(new QLabel(tr("Surface(Inner):")),  0, 1);
+        groupAlphaLayout->addWidget(new QLabel(tr("Surface(Outer):")),  1, 1);
+        groupAlphaLayout->addWidget(new QLabel(tr("Point Cloud:")),     2, 1);
+        groupAlphaLayout->addWidget(new QLabel(tr("Slicing Plane:")),   3, 1);
+        lineMeshInnerAlpha = new QLineEdit;
+        lineMeshOuterAlpha = new QLineEdit;
         linePointCloudAlpha = new QLineEdit;
         lineSliceAlpha = new QLineEdit;
-        groupAlphaLayout->addWidget(lineMeshAlpha, 0, 2);
-        groupAlphaLayout->addWidget(linePointCloudAlpha, 1, 2);
-        groupAlphaLayout->addWidget(lineSliceAlpha, 2, 2);
+        groupAlphaLayout->addWidget(lineMeshInnerAlpha,     0, 2);
+        groupAlphaLayout->addWidget(lineMeshOuterAlpha,     1, 2);
+        groupAlphaLayout->addWidget(linePointCloudAlpha,    2, 2);
+        groupAlphaLayout->addWidget(lineSliceAlpha,         3, 2);
         groupAlpha->setLayout(groupAlphaLayout);
     }
     gridLayout->addWidget(groupAlpha, 0, 0);
@@ -165,11 +170,13 @@ ConfigDialog::~ConfigDialog()
 
 void ConfigDialog::initContentFromConfig()
 {
-    checkMesh->setChecked(config.render_config.mesh_visible);
+    checkMeshInner->setChecked(config.render_config.mesh_inner_visible);
+    checkMeshOuter->setChecked(config.render_config.mesh_outer_visible);
     checkPointCloud->setChecked(config.render_config.point_cloud_visible);
     checkSlice->setChecked(config.render_config.slice_visible);
 
-    lineMeshAlpha->setText(tr("%0").arg(config.render_config.mesh_alpha));
+    lineMeshInnerAlpha->setText(tr("%0").arg(config.render_config.mesh_inner_alpha));
+    lineMeshOuterAlpha->setText(tr("%0").arg(config.render_config.mesh_outer_alpha));
     linePointCloudAlpha->setText(tr("%0").arg(config.render_config.point_cloud_alpha));
     lineSliceAlpha->setText(tr("%0").arg(config.render_config.slice_alpha));
 
@@ -226,11 +233,13 @@ void ConfigDialog::initContentFromConfig()
 
 void ConfigDialog::setConfigFromContent()
 {
-    config.render_config.mesh_visible = checkMesh->isChecked();
+    config.render_config.mesh_inner_visible = checkMeshInner->isChecked();
+    config.render_config.mesh_outer_visible = checkMeshOuter->isChecked();
     config.render_config.point_cloud_visible = checkPointCloud->isChecked();
     config.render_config.slice_visible = checkSlice->isChecked();
 
-    config.render_config.mesh_alpha = lineMeshAlpha->text().toFloat();
+    config.render_config.mesh_inner_alpha = lineMeshInnerAlpha->text().toFloat();
+    config.render_config.mesh_outer_alpha = lineMeshOuterAlpha->text().toFloat();
     config.render_config.point_cloud_alpha = linePointCloudAlpha->text().toFloat();
     config.render_config.slice_alpha = lineSliceAlpha->text().toFloat();
 

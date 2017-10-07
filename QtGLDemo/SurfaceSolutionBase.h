@@ -8,6 +8,7 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/System/config.h>
 #include <OpenMesh/Core/Mesh/Status.hh>
+
 using TriMesh = OpenMesh::TriMesh_ArrayKernelT<>;
 using VertexHandle = TriMesh::VertexHandle;
 using FaceHandle = TriMesh::FaceHandle;
@@ -53,8 +54,6 @@ protected:
     void UpdateBasicMeshInformation();
     void BuildLaplacianMatrixBuilder();
     void RefineSurface();
-
-private:
     float _cotangent_for_angle_AOB(int, int, int);
 };
 

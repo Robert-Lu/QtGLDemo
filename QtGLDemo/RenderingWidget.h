@@ -36,8 +36,9 @@ signals:
 
 public slots:
     void ClearMesh();
-    void ReadMeshFromFile();
-    void ReadMeshFromFile(const QString &);
+    void ReadMeshInnerFromFile();
+    void ReadMeshOuterFromFile();
+    //void ReadMeshFromFile(const QString &);
     void GenerateSphereMesh();
     void ClearPointCloud();
     void ReadPointCloudFromFile();
@@ -45,7 +46,8 @@ public slots:
     void ClearDistanceField();
     void ReadDistanceFieldFromFile();
     void ReadDistanceFieldFromFile(const QString &);
-    void SaveMeshToFile();
+    void SaveMeshInnerToFile();
+    void SaveMeshOuterToFile();
     void SavePointCloudToFile();
     void SaveDistanceFieldToFile();
     void ApplyUnifyForMesh();
@@ -116,9 +118,11 @@ private:
     SurfaceSolutionBase *ss;
 
     // Vertex Data
-    TriMesh mesh;
+    TriMesh mesh_inner;
+    TriMesh mesh_outer;
     TriMesh pc;
     std::vector<Vertex3D> vertex_data_mesh;
+    int vertex_data_mesh_inner_size;
     std::vector<Vertex3D> vertex_data_pc;
     std::vector<Vertex2D> vertex_data_base;
     std::vector<Vertex2D> vertex_data_slice;
@@ -148,6 +152,7 @@ private:
     static void DrawCoord(std::vector<Vertex2D> &, float len = 1.0f);
     static void TranslateCoodinate(TriMesh &);
     void GenerateBufferFromMesh(TriMesh &, std::vector<Vertex3D> &);
+    void GenerateBufferFromMesh(std::vector<Vertex3D> &);
     void GenerateBufferFromPointCloud(TriMesh &, std::vector<Vertex3D> &);
     static void ApplyUnify(TriMesh &);
     static void ApplyFlip(TriMesh &, int i);
@@ -155,4 +160,5 @@ private:
     void _InsertScriptHistory(const QString &str, ScriptHistoryType type);
     void _RunScriptLine(std::vector<QString> &script, int recursion_limit = 10);
     void RunScript();
+    void ReadMeshFromFile(const QString &, TriMesh &);
 };
