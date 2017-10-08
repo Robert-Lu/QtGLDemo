@@ -247,15 +247,69 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename, TriMesh &mesh)
         InfoType);
 }
 
-void RenderingWidget::GenerateSphereMesh()
+//void RenderingWidget::GenerateSphereMesh()
+//{
+//    SurfaceSolutionBase::BuildSphere(mesh_inner,
+//        algorithm_config.get_float("Shpere_Radio", 1.0f),
+//        algorithm_config.get_int("Shpere_Max_Division", 5), true);
+//    // Update the vertex normals
+//    mesh_inner.request_vertex_normals();
+//    mesh_inner.request_face_normals();
+//    mesh_inner.update_normals();
+//
+//    // Extract every vertex by face-vertex circulator.
+//    GenerateBufferFromMesh(vertex_data_mesh);
+//
+//    buffer_need_update_mesh = true;
+//
+//    // Surface Solution unbind
+//    if (ss != nullptr)
+//    {
+//        delete ss;
+//        ss = nullptr;
+//    }
+//}
+
+void RenderingWidget::GenerateSphereMeshInner()
 {
-    SurfaceSolutionBase::BuildSphere(mesh_inner, 
-        algorithm_config.get_float("Shpere_Radio", 1.0f),
-        algorithm_config.get_int("Shpere_Max_Division", 5), true);
+    SurfaceSolutionBase::BuildSphere(mesh_inner,
+        algorithm_config.get_float("Inner_Initial_Ratio", 0.05f),
+        algorithm_config.get_int("Inner_Initial_Division", 2), true,
+        algorithm_config.get_float("Inner_Initial_Center_X", 0.0f),
+        algorithm_config.get_float("Inner_Initial_Center_Y", 0.0f),
+        algorithm_config.get_float("Inner_Initial_Center_Z", 0.0f)
+        );
     // Update the vertex normals
-    mesh_inner.request_vertex_normals();  
+    mesh_inner.request_vertex_normals();
     mesh_inner.request_face_normals();
     mesh_inner.update_normals();
+
+    // Extract every vertex by face-vertex circulator.
+    GenerateBufferFromMesh(vertex_data_mesh);
+
+    buffer_need_update_mesh = true;
+
+    // Surface Solution unbind
+    if (ss != nullptr)
+    {
+        delete ss;
+        ss = nullptr;
+    }
+}
+
+void RenderingWidget::GenerateSphereMeshOuter()
+{
+    SurfaceSolutionBase::BuildSphere(mesh_outer,
+        algorithm_config.get_float("Outer_Initial_Ratio", 1.0f),
+        algorithm_config.get_int("Outer_Initial_Division", 4), true,
+        algorithm_config.get_float("Outer_Initial_Center_X", 0.0f),
+        algorithm_config.get_float("Outer_Initial_Center_Y", 0.0f),
+        algorithm_config.get_float("Outer_Initial_Center_Z", 0.0f)
+        );
+    // Update the vertex normals
+    mesh_outer.request_vertex_normals();
+    mesh_outer.request_face_normals();
+    mesh_outer.update_normals();
 
     // Extract every vertex by face-vertex circulator.
     GenerateBufferFromMesh(vertex_data_mesh);
@@ -878,7 +932,7 @@ void RenderingWidget::UpdateSlicingPlane(int max_div_set)
     buffer_need_update_slice = true;
 }
 
-void RenderingWidget::UpdateSurface(int iter) // default = 1
+void RenderingWidget::UpdateSurface(bool inner, bool outer, int iter) // default = 1
 {
     if (mesh_inner.vertices_empty() || mesh_outer.vertices_empty())
     {
@@ -894,10 +948,10 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
         return;
     }
 
+    QString method = algorithm_config.get_string("SurfaceUpdateMethod", "Neo");
     if (ss == nullptr)
     {
         // initialize the Surface Solution.
-        QString method = algorithm_config.get_string("SurfaceUpdateMethod", "Neo");
 
         /*if (method == "Matlab")
             ss = new SurfaceSolutionMatlab(mesh_inner, dis_field, msg, algorithm_config);
@@ -909,7 +963,18 @@ void RenderingWidget::UpdateSurface(int iter) // default = 1
     algorithm_config.reload();
 
     for (int i = 0; i < iter; i++)
-        ss->update();
+    {
+        if (method == "Neo")
+        {
+            auto ssr = dynamic_cast<SurfaceSolutionNeo *>(ss);
+            if (inner)
+                ssr->update_inner();
+            if (outer)
+                ssr->update_outer();
+        }
+        else
+            ss->update();
+    }
 
     mesh_inner.update_normals();
 
@@ -1172,7 +1237,7 @@ void RenderingWidget::paintGL()
                 shader_program_basic_light->setUniformValue("material.diffuse", material.diffuse);
                 shader_program_basic_light->setUniformValue("material.specular", material.specular);
                 shader_program_basic_light->setUniformValue("material.shininess", material.shininess);
-                glDrawArrays(GL_TRIANGLES, vertex_data_mesh_inner_size, vertex_data_mesh.size());
+                glDrawArrays(GL_TRIANGLES, vertex_data_mesh_inner_size, vertex_data_mesh.size() - vertex_data_mesh_inner_size);
             }
         }
         vao_mesh.release();
@@ -1511,10 +1576,19 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         emit(StatusInfo(QString("render_cull_face set to %0").arg(config_bundle.render_config.draw_face)));
         break;
     case Qt::Key_T:
-        this->GenerateSphereMesh();
+        if (has_shift)
+            this->GenerateSphereMeshOuter();
+        else
+            this->GenerateSphereMeshInner();
         break;
     case Qt::Key_U:
-        this->UpdateSurface();
+        if (has_shift && has_ctrl)
+            this->UpdateSurface(true, true, 1);
+        else if (has_shift && !has_ctrl)
+            this->UpdateSurface(false, true, 1);
+        else if (!has_shift && !has_ctrl)
+            this->UpdateSurface(true, false, 1);
+
         break;
     // MODE
     //case Qt::Key_Colon:

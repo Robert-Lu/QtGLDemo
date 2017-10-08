@@ -33,7 +33,8 @@ SurfaceSolutionNeo::~SurfaceSolutionNeo()
 
 void SurfaceSolutionNeo::update()
 {
-    UpdateBasicMeshInformationDual();
+    InputVariableToEngine(engine, "update_Inner", 1.0f);
+    InputVariableToEngine(engine, "update_Outer", 1.0f);
 
     // Extract Constants.
     float w_L = algorithm_config.get_float("w_L", 1.0f);
@@ -57,12 +58,12 @@ void SurfaceSolutionNeo::update()
     InputVariableToEngine(engine, "size_Inner", mesh_inner.n_vertices());
     InputVariableToEngine(engine, "size_Outer", mesh_outer.n_vertices());
 
-    BuildLaplacianMatrixBuilder(builderLaplacian, mesh_inner);
-    InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacian);
+    BuildLaplacianMatrixBuilderInner();
+    InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacianInner);
 
     // Extract Position.
     std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
-    SpMatBuilder builderDistance;
+    SpMatBuilder builderDistance; 
     SpMatBuilder builderIntensity;
     std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
     std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
@@ -87,8 +88,8 @@ void SurfaceSolutionNeo::update()
     InputSparseMatrixToEngine(engine, "Its_Inner", builderIntensity);
     InputDenseMatrixToEngine(engine, "N_Inner", data_normal);
 
-    BuildLaplacianMatrixBuilder(builderLaplacian, mesh_outer);
-    InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacian);
+    BuildLaplacianMatrixBuilderOuter();
+    InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
 
     // Extract Position.
     std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
@@ -125,7 +126,7 @@ void SurfaceSolutionNeo::update()
         auto fv_iter = mesh_inner.fv_begin(f);
         for (; fv_iter != mesh_inner.fv_end(f); fv_iter++)
         {
-            auto index = vert_index[*fv_iter];
+            auto index = vert_index_inner[*fv_iter];
             // apply 1/3 the mass of face to each 3 face vertices.
             builderMass.push_back(SpMatTriple{ index, index,
                 area_mass * area / 3.0f });
@@ -141,7 +142,7 @@ void SurfaceSolutionNeo::update()
         auto fv_iter = mesh_outer.fv_begin(f);
         for (; fv_iter != mesh_outer.fv_end(f); fv_iter++)
         {
-            auto index = vert_index[*fv_iter];
+            auto index = vert_index_outer[*fv_iter];
             // apply 1/3 the mass of face to each 3 face vertices.
             builderMass.push_back(SpMatTriple{ index, index,
                 area_mass * area / 3.0f });
@@ -172,16 +173,336 @@ void SurfaceSolutionNeo::update()
 
 
     // Retrieve Data
-    auto data = RetieveDenseMatricFromEngine(engine, "V_prime", mesh_inner.n_vertices(), 3);
+    auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
     for (int i = 0; i < mesh_inner.n_vertices(); i++)
     {
-        mesh_inner.point(verts[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+        mesh_inner.point(verts_inner[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+    }
+    data = RetieveDenseMatricFromEngine(engine, "V_prime_Outer", mesh_outer.n_vertices(), 3);
+    for (int i = 0; i < mesh_outer.n_vertices(); i++)
+    {
+        mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     }
 
-    refine_inner.refine();
+    changed_inner = refine_inner.refine();
+    changed_outer = refine_outer.refine();
 }
 
-void SurfaceSolutionNeo::UpdateBasicMeshInformationDual()
+void SurfaceSolutionNeo::update_inner()
+{
+    InputVariableToEngine(engine, "update_Inner", 1.0f);
+    InputVariableToEngine(engine, "update_Outer", 0.0f);
+
+    // Extract Constants.
+    float w_L = algorithm_config.get_float("w_L", 1.0f);
+    float w_P = algorithm_config.get_float("w_P", 1.0f);
+    float w_F = algorithm_config.get_float("w_F", 1.0f);
+    float epsilon = algorithm_config.get_float("epsilon", 1.0e-3f);
+
+    float grav_acc = algorithm_config.get_float("grav_acc", 10.0f);
+    float area_press = algorithm_config.get_float("area_press", 10.0f);
+    float area_mass = algorithm_config.get_float("area_mass", 100.0f);
+
+    InputVariableToEngine(engine, "grav_acc", grav_acc);
+    InputVariableToEngine(engine, "area_mass", area_mass);
+    InputVariableToEngine(engine, "area_press", area_press);
+
+    InputVariableToEngine(engine, "w_L", w_L);
+    InputVariableToEngine(engine, "w_P", w_P);
+    InputVariableToEngine(engine, "w_F", w_F);
+    InputVariableToEngine(engine, "epsilon", epsilon);
+
+    InputVariableToEngine(engine, "size_Inner", mesh_inner.n_vertices());
+    // InputVariableToEngine(engine, "size_Outer", mesh_outer.n_vertices());
+
+    BuildLaplacianMatrixBuilderInner();
+    InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacianInner);
+
+    // Extract Position.
+    std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
+    SpMatBuilder builderDistance;
+    SpMatBuilder builderIntensity;
+    std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
+    for (int r = 0; r < num_verts_inner; r++)
+    {
+        auto pos = mesh_inner.point(verts_inner[r]);
+        auto nor = mesh_inner.normal(verts_inner[r]);
+        auto dir = dis_field->get_dir(pos);
+        auto dis = dis_field->get_value(pos);
+        builderDistance.push_back(SpMatTriple{ r, r, dis });
+        builderIntensity.push_back(SpMatTriple{ r, r,
+            dis - epsilon < 0 ? 0 : dis - epsilon });
+        for (int c = 0; c < 3; c++)
+        {
+            data_position[r][c] = pos[c];
+            data_normal[r][c] = nor[c];
+            data_grad_potential[r][c] = dir[c];
+        }
+    }
+    InputDenseMatrixToEngine(engine, "V_Inner", data_position);
+    InputSparseMatrixToEngine(engine, "Dis_Inner", builderDistance);
+    InputSparseMatrixToEngine(engine, "Its_Inner", builderIntensity);
+    InputDenseMatrixToEngine(engine, "N_Inner", data_normal);
+
+    // BuildLaplacianMatrixBuilderOuter();
+    // InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
+
+    // // Extract Position.
+    // std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    // SpMatBuilder builderDistance_outer;
+    // SpMatBuilder builderIntensity_outer;
+    // std::vector<std::vector<float>> data_normal_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    // std::vector<std::vector<float>> data_grad_potential_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    // for (int r = 0; r < num_verts_outer; r++)
+    // {
+    //     auto pos = mesh_outer.point(verts_outer[r]);
+    //     auto nor = mesh_outer.normal(verts_outer[r]);
+    //     auto dir = dis_field->get_dir(pos);
+    //     auto dis = dis_field->get_value(pos);
+    //     builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
+    //     builderIntensity_outer.push_back(SpMatTriple{ r, r,
+    //         dis - epsilon < 0 ? 0 : dis - epsilon });
+    //     for (int c = 0; c < 3; c++)
+    //     {
+    //         data_position_outer[r][c] = pos[c];
+    //         data_normal_outer[r][c] = nor[c];
+    //         data_grad_potential_outer[r][c] = dir[c];
+    //     }
+    // }
+    // InputDenseMatrixToEngine(engine, "V_Outer", data_position_outer);
+    // InputSparseMatrixToEngine(engine, "Dis_Outer", builderDistance_outer);
+    // InputSparseMatrixToEngine(engine, "Its_Outer", builderIntensity_outer);
+    // InputDenseMatrixToEngine(engine, "N_Outer", data_normal_outer);
+
+    // Build Mass Matrix and Area Matrix.
+    SpMatBuilder builderMass, builderArea;
+    for (auto f : mesh_inner.faces())
+    {
+        auto area = _area(mesh_inner, f);
+        auto fv_iter = mesh_inner.fv_begin(f);
+        for (; fv_iter != mesh_inner.fv_end(f); fv_iter++)
+        {
+            auto index = vert_index_inner[*fv_iter];
+            // apply 1/3 the mass of face to each 3 face vertices.
+            builderMass.push_back(SpMatTriple{ index, index,
+                area_mass * area / 3.0f });
+            builderArea.push_back(SpMatTriple{ index, index,
+                area / 3.0f });
+        }
+    }
+    InputSparseMatrixToEngine(engine, "Mass_Inner", builderMass);
+    InputSparseMatrixToEngine(engine, "Area_Inner", builderArea);
+    // for (auto f : mesh_outer.faces())
+    // {
+    //     auto area = _area(mesh_outer, f);
+    //     auto fv_iter = mesh_outer.fv_begin(f);
+    //     for (; fv_iter != mesh_outer.fv_end(f); fv_iter++)
+    //     {
+    //         auto index = vert_index_outer[*fv_iter];
+    //         // apply 1/3 the mass of face to each 3 face vertices.
+    //         builderMass.push_back(SpMatTriple{ index, index,
+    //             area_mass * area / 3.0f });
+    //         builderArea.push_back(SpMatTriple{ index, index,
+    //             area / 3.0f });
+    //     }
+    // }
+    // InputSparseMatrixToEngine(engine, "Mass_Outer", builderMass);
+    // InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
+
+
+    // Main.
+    auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
+    QFile f{ script_filename };
+    if (!f.open(QFile::ReadOnly | QFile::Text))
+    {
+        msg.log("cannot read Matlab script.", ERROR_MSG);
+        return;
+    }
+
+    // Matlab Set Output
+    char p[1000] = "";
+    engOutputBuffer(engine, p, 1000);
+    engEvalString(engine, f.readAll().toStdString().c_str());
+
+    if (strlen(p) > 0)
+        msg.log(p, INFO_MSG);
+
+
+    // Retrieve Data
+    auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
+    for (int i = 0; i < mesh_inner.n_vertices(); i++)
+    {
+        mesh_inner.point(verts_inner[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+    }
+    // data = RetieveDenseMatricFromEngine(engine, "V_prime_Outer", mesh_outer.n_vertices(), 3);
+    // for (int i = 0; i < mesh_outer.n_vertices(); i++)
+    // {
+    //     mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+    // }
+
+    changed_inner = refine_inner.refine();
+    // changed_outer = refine_outer.refine();
+}
+
+void SurfaceSolutionNeo::update_outer()
+{
+    InputVariableToEngine(engine, "update_Inner", 0.0f);
+    InputVariableToEngine(engine, "update_Outer", 1.0f);
+
+    // Extract Constants.
+    float w_L = algorithm_config.get_float("w_L", 1.0f);
+    float w_P = algorithm_config.get_float("w_P", 1.0f);
+    float w_F = algorithm_config.get_float("w_F", 1.0f);
+    float epsilon = algorithm_config.get_float("epsilon", 1.0e-3f);
+
+    float grav_acc = algorithm_config.get_float("grav_acc", 10.0f);
+    float area_press = algorithm_config.get_float("area_press", 10.0f);
+    float area_mass = algorithm_config.get_float("area_mass", 100.0f);
+
+    InputVariableToEngine(engine, "grav_acc", grav_acc);
+    InputVariableToEngine(engine, "area_mass", area_mass);
+    InputVariableToEngine(engine, "area_press", area_press);
+
+    InputVariableToEngine(engine, "w_L", w_L);
+    InputVariableToEngine(engine, "w_P", w_P);
+    InputVariableToEngine(engine, "w_F", w_F);
+    InputVariableToEngine(engine, "epsilon", epsilon);
+
+    // InputVariableToEngine(engine, "size_Inner", mesh_inner.n_vertices());
+     InputVariableToEngine(engine, "size_Outer", mesh_outer.n_vertices());
+
+    // BuildLaplacianMatrixBuilderInner();
+    // InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacianInner);
+
+    // Extract Position.
+    std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
+    SpMatBuilder builderDistance;
+    SpMatBuilder builderIntensity;
+    std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
+    // for (int r = 0; r < num_verts_inner; r++)
+    // {
+    //     auto pos = mesh_inner.point(verts_inner[r]);
+    //     auto nor = mesh_inner.normal(verts_inner[r]);
+    //     auto dir = dis_field->get_dir(pos);
+    //     auto dis = dis_field->get_value(pos);
+    //     builderDistance.push_back(SpMatTriple{ r, r, dis });
+    //     builderIntensity.push_back(SpMatTriple{ r, r,
+    //         dis - epsilon < 0 ? 0 : dis - epsilon });
+    //     for (int c = 0; c < 3; c++)
+    //     {
+    //         data_position[r][c] = pos[c];
+    //         data_normal[r][c] = nor[c];
+    //         data_grad_potential[r][c] = dir[c];
+    //     }
+    // }
+    // InputDenseMatrixToEngine(engine, "V_Inner", data_position);
+    // InputSparseMatrixToEngine(engine, "Dis_Inner", builderDistance);
+    // InputSparseMatrixToEngine(engine, "Its_Inner", builderIntensity);
+    // InputDenseMatrixToEngine(engine, "N_Inner", data_normal);
+
+    BuildLaplacianMatrixBuilderOuter();
+    InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
+
+    // Extract Position.
+    std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    SpMatBuilder builderDistance_outer;
+    SpMatBuilder builderIntensity_outer;
+    std::vector<std::vector<float>> data_normal_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_grad_potential_outer(num_verts_outer, std::vector<float>(3, 0.0f));
+    for (int r = 0; r < num_verts_outer; r++)
+    {
+        auto pos = mesh_outer.point(verts_outer[r]);
+        auto nor = mesh_outer.normal(verts_outer[r]);
+        auto dir = dis_field->get_dir(pos);
+        auto dis = dis_field->get_value(pos);
+        builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
+        builderIntensity_outer.push_back(SpMatTriple{ r, r,
+            dis - epsilon < 0 ? 0 : dis - epsilon });
+        for (int c = 0; c < 3; c++)
+        {
+            data_position_outer[r][c] = pos[c];
+            data_normal_outer[r][c] = nor[c];
+            data_grad_potential_outer[r][c] = dir[c];
+        }
+    }
+    InputDenseMatrixToEngine(engine, "V_Outer", data_position_outer);
+    InputSparseMatrixToEngine(engine, "Dis_Outer", builderDistance_outer);
+    InputSparseMatrixToEngine(engine, "Its_Outer", builderIntensity_outer);
+    InputDenseMatrixToEngine(engine, "N_Outer", data_normal_outer);
+
+    // Build Mass Matrix and Area Matrix.
+    SpMatBuilder builderMass, builderArea;
+    // for (auto f : mesh_inner.faces())
+    // {
+    //     auto area = _area(mesh_inner, f);
+    //     auto fv_iter = mesh_inner.fv_begin(f);
+    //     for (; fv_iter != mesh_inner.fv_end(f); fv_iter++)
+    //     {
+    //         auto index = vert_index_inner[*fv_iter];
+    //         // apply 1/3 the mass of face to each 3 face vertices.
+    //         builderMass.push_back(SpMatTriple{ index, index,
+    //             area_mass * area / 3.0f });
+    //         builderArea.push_back(SpMatTriple{ index, index,
+    //             area / 3.0f });
+    //     }
+    // }
+    // InputSparseMatrixToEngine(engine, "Mass_Inner", builderMass);
+    // InputSparseMatrixToEngine(engine, "Area_Inner", builderArea);
+    for (auto f : mesh_outer.faces())
+    {
+        auto area = _area(mesh_outer, f);
+        auto fv_iter = mesh_outer.fv_begin(f);
+        for (; fv_iter != mesh_outer.fv_end(f); fv_iter++)
+        {
+            auto index = vert_index_outer[*fv_iter];
+            // apply 1/3 the mass of face to each 3 face vertices.
+            builderMass.push_back(SpMatTriple{ index, index,
+                area_mass * area / 3.0f });
+            builderArea.push_back(SpMatTriple{ index, index,
+                area / 3.0f });
+        }
+    }
+    InputSparseMatrixToEngine(engine, "Mass_Outer", builderMass);
+    InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
+
+
+    // Main.
+    auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
+    QFile f{ script_filename };
+    if (!f.open(QFile::ReadOnly | QFile::Text))
+    {
+        msg.log("cannot read Matlab script.", ERROR_MSG);
+        return;
+    }
+
+    // Matlab Set Output
+    char p[1000] = "";
+    engOutputBuffer(engine, p, 1000);
+    engEvalString(engine, f.readAll().toStdString().c_str());
+
+    if (strlen(p) > 0)
+        msg.log(p, INFO_MSG);
+
+
+    // Retrieve Data
+    // auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
+    // for (int i = 0; i < mesh_inner.n_vertices(); i++)
+    // {
+    //     mesh_inner.point(verts_inner[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+    // }
+    auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Outer", mesh_outer.n_vertices(), 3);
+    for (int i = 0; i < mesh_outer.n_vertices(); i++)
+    {
+        mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
+    }
+
+    // changed_inner = refine_inner.refine();
+    changed_outer = refine_outer.refine();
+}
+
+void SurfaceSolutionNeo::UpdateBasicMeshInformationInner()
 {
     num_verts_inner = mesh_inner.n_vertices();
     verts_inner.clear();
@@ -206,6 +527,11 @@ void SurfaceSolutionNeo::UpdateBasicMeshInformationDual()
         num_neighbors_inner.push_back(neighbor_count);
     }
 
+    changed_inner = false;
+}
+
+void SurfaceSolutionNeo::UpdateBasicMeshInformationOuter()
+{
     num_verts_outer = mesh_outer.n_vertices();
     verts_outer.clear();
     num_neighbors_outer.clear();
@@ -229,9 +555,121 @@ void SurfaceSolutionNeo::UpdateBasicMeshInformationDual()
         num_neighbors_outer.push_back(neighbor_count);
     }
 
-
+    changed_outer = false;
 }
 
+void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderInner()
+{
+    if (changed_inner)
+        UpdateBasicMeshInformationInner();
+    else
+        return;
+
+    builderLaplacianInner.clear();
+
+    auto weight_policy = algorithm_config.get_string("LaplacianWeight", "uniform");
+
+    for (int i = 0; i < num_verts_inner; i++)
+    {
+        float weight_sum = 0.0f;
+
+        if (weight_policy == "uniform")
+        {
+            for (int neib_vert_idx : neighbors_inner[i])
+            {
+                float weight = 1.0f; // uniform
+                builderLaplacianInner.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
+                weight_sum += weight;
+            }
+        }
+        else if (weight_policy == "cotangent")
+        {
+            int degree = neighbors_inner[i].size();
+            for (int j = 0; j < degree; ++j)
+            {
+                int vj = neighbors_inner[i][j];
+                int vleft = neighbors_inner[i][MOD(j + 1, degree)];
+                int vright = neighbors_inner[i][MOD(j - 1, degree)];
+
+                auto weight = _cotangent_for_angle_AOB(i, vleft, vj) +
+                    _cotangent_for_angle_AOB(i, vright, vj);
+                weight_sum += weight;
+                builderLaplacianInner.push_back(SpMatTriple{ i, vj, -weight });
+            }
+        }
+        else
+        {
+            msg.log("Unknown Laplacian policy ", weight_policy, ERROR_MSG);
+            // still use uniform
+            for (int neib_vert_idx : neighbors_inner[i])
+            {
+                float weight = 1.0f; // uniform
+                builderLaplacianInner.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
+                weight_sum += weight;
+            }
+        }
+
+        builderLaplacianInner.push_back(SpMatTriple{ i, i, weight_sum });
+    }
+}
+
+void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderOuter()
+{
+
+    if (changed_outer)
+        UpdateBasicMeshInformationOuter();
+    else
+        return;
+
+    builderLaplacianOuter.clear();
+
+    auto weight_policy = algorithm_config.get_string("LaplacianWeight", "uniform");
+
+    for (int i = 0; i < num_verts_outer; i++)
+    {
+        float weight_sum = 0.0f;
+
+        if (weight_policy == "uniform")
+        {
+            for (int neib_vert_idx : neighbors_outer[i])
+            {
+                float weight = 1.0f; // uniform
+                builderLaplacianOuter.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
+                weight_sum += weight;
+            }
+        }
+        else if (weight_policy == "cotangent")
+        {
+            int degree = neighbors_outer[i].size();
+            for (int j = 0; j < degree; ++j)
+            {
+                int vj = neighbors_outer[i][j];
+                int vleft = neighbors_outer[i][MOD(j + 1, degree)];
+                int vright = neighbors_outer[i][MOD(j - 1, degree)];
+
+                auto weight = _cotangent_for_angle_AOB(i, vleft, vj) +
+                    _cotangent_for_angle_AOB(i, vright, vj);
+                weight_sum += weight;
+                builderLaplacianOuter.push_back(SpMatTriple{ i, vj, -weight });
+            }
+        }
+        else
+        {
+            msg.log("Unknown Laplacian policy ", weight_policy, ERROR_MSG);
+            // still use uniform
+            for (int neib_vert_idx : neighbors_outer[i])
+            {
+                float weight = 1.0f; // uniform
+                builderLaplacianOuter.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
+                weight_sum += weight;
+            }
+        }
+
+        builderLaplacianOuter.push_back(SpMatTriple{ i, i, weight_sum });
+    }
+}
+
+/*
 void SurfaceSolutionNeo::BuildLaplacianMatrixBuilder(SpMatBuilder& builder, TriMesh &M)
 {
     num_verts = M.n_vertices();
@@ -304,3 +742,4 @@ void SurfaceSolutionNeo::BuildLaplacianMatrixBuilder(SpMatBuilder& builder, TriM
         builder.push_back(SpMatTriple{ i, i, weight_sum });
     }
 }
+*/

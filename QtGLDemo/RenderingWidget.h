@@ -39,7 +39,9 @@ public slots:
     void ReadMeshInnerFromFile();
     void ReadMeshOuterFromFile();
     //void ReadMeshFromFile(const QString &);
-    void GenerateSphereMesh();
+    //void GenerateSphereMesh();
+    void GenerateSphereMeshInner();
+    void GenerateSphereMeshOuter();
     void ClearPointCloud();
     void ReadPointCloudFromFile();
     void ReadPointCloudFromFile(const QString &);
@@ -60,7 +62,7 @@ public slots:
     void ChangeColorPointCloud();
     void SyncConfigBundle(ConfigBundle &);
     void UpdateSlicingPlane(int max_div = 0);
-    void UpdateSurface(int iter = 1);
+    void UpdateSurface(bool inner, bool outer, int iter = 1);
 
 protected:
     void initializeGL() override;

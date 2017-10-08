@@ -382,5 +382,6 @@ bool MeshRefineSolution::refine()
         }
     }
 
+    mesh.update_normals();
     return changed;
 }

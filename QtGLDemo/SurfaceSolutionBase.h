@@ -28,13 +28,14 @@ public:
 
     static void BuildOctahedron(TriMesh& mesh, float r, bool clear = false);
     static void BuildIcosahedron(TriMesh& mesh, float r, bool clear = false);
-    static void BuildSphere(TriMesh &m, float r, int max_div = 2, bool clear = false);
+    static void BuildSphere(TriMesh &m, float r, int max_div = 2, bool clear = false, float x = 0, float y = 0, float z = 0);
 
 protected:
-    TriMesh &mesh;
     ConsoleMessageManager &msg;
     TextConfigLoader &algorithm_config;
     OcTreeField *dis_field;
+//private:
+    TriMesh &mesh;
     MeshRefineSolution refine;
     
     // Basic Information

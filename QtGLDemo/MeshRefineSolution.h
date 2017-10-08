@@ -27,4 +27,3 @@ protected:
     int _Flip(float edge_flip_tolerance, bool& changed);
     int _Collapse(float edge_collapse_tolerance, bool& changed);
 };
-

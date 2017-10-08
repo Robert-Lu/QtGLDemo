@@ -199,7 +199,7 @@ void SurfaceSolutionBase::BuildIcosahedron(TriMesh& mesh, float r, bool clear)
  * \param r         radio for vertices to central point
  * \param clear     whether clear the mesh
  */
-void SurfaceSolutionBase::BuildSphere(TriMesh& mesh, float r, int max_div, bool clear)
+void SurfaceSolutionBase::BuildSphere(TriMesh& mesh, float r, int max_div, bool clear, float x, float y, float z)
 {
     if (clear)
         mesh.clear();
@@ -275,5 +275,10 @@ void SurfaceSolutionBase::BuildSphere(TriMesh& mesh, float r, int max_div, bool 
 
         for (auto farr : face_to_add)
             mesh.add_face(farr[0], farr[1], farr[2]);
+    }
+
+    for (auto vit : mesh.vertices())
+    {
+        mesh.point(vit) += Vec3f{ x, y, z };
     }
 }

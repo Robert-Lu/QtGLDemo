@@ -10,13 +10,20 @@ public:
     SurfaceSolutionNeo(TriMesh &si, TriMesh &so, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
     ~SurfaceSolutionNeo();
 
-    virtual void update() override;
+    void update() override;
+    virtual void update_inner();
+    virtual void update_outer();
 
 protected:
+    // Mesh
     TriMesh &mesh_inner;
     TriMesh &mesh_outer;
     MeshRefineSolution refine_inner;
     MeshRefineSolution refine_outer;
+    SpMatBuilder builderLaplacianInner;
+    SpMatBuilder builderLaplacianOuter;
+    bool changed_inner {true};
+    bool changed_outer {true};
 
     // Basic Information
     int num_verts_inner;
@@ -33,7 +40,10 @@ protected:
     std::vector<std::vector<int>> neighbors_outer;
     bool surface_changed_outer;
 
-    void UpdateBasicMeshInformationDual();
-    void BuildLaplacianMatrixBuilder(SpMatBuilder &, TriMesh &);
+    void UpdateBasicMeshInformationInner();
+    void UpdateBasicMeshInformationOuter();
+    void BuildLaplacianMatrixBuilderInner();
+    void BuildLaplacianMatrixBuilderOuter();
+    //static void BuildLaplacianMatrixBuilder(SpMatBuilder &, TriMesh &);
 };
 
