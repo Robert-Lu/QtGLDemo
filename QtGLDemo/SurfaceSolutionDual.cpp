@@ -3,6 +3,15 @@
 
 #define MOD(x, m) (((x) + (m)) % (m))
 
+inline float _pinch(float min, float val, float max)
+{
+    if (val < min)
+        return min;
+    if (val > max)
+        return max;
+    return val;
+}
+
 inline float _area(TriMesh &mesh, FaceHandle fh)
 {
     float a = 0.0f;
@@ -20,7 +29,7 @@ inline float _area(TriMesh &mesh, FaceHandle fh)
 }
 
 SurfaceSolutionNeo::SurfaceSolutionNeo(TriMesh& si, TriMesh& so, OcTreeField* d, ConsoleMessageManager& m, TextConfigLoader& ac) :
-    SurfaceSolutionMatlab(si, d, m, ac), 
+    SurfaceSolutionMatlab(si, d, m, ac),
     mesh_inner(si), mesh_outer(so), refine_inner(si, m, ac), refine_outer(so, m, ac)
 {
     msg.log("Neo Test Method Iteration.");
@@ -63,7 +72,7 @@ void SurfaceSolutionNeo::update()
 
     // Extract Position.
     std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
-    SpMatBuilder builderDistance; 
+    SpMatBuilder builderDistance;
     SpMatBuilder builderIntensity;
     std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
     std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
@@ -75,7 +84,7 @@ void SurfaceSolutionNeo::update()
         auto dis = dis_field->get_value(pos);
         builderDistance.push_back(SpMatTriple{ r, r, dis });
         builderIntensity.push_back(SpMatTriple{ r, r,
-            dis - epsilon < 0 ? 0 : dis - epsilon });
+            _pinch(0.0f, dis - epsilon, 2 * epsilon) });
         for (int c = 0; c < 3; c++)
         {
             data_position[r][c] = pos[c];
@@ -105,7 +114,7 @@ void SurfaceSolutionNeo::update()
         auto dis = dis_field->get_value(pos);
         builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
         builderIntensity_outer.push_back(SpMatTriple{ r, r,
-            dis - epsilon < 0 ? 0 : dis - epsilon });
+            _pinch(0.0f, dis - epsilon, 2 * epsilon) });
         for (int c = 0; c < 3; c++)
         {
             data_position_outer[r][c] = pos[c];
@@ -184,8 +193,8 @@ void SurfaceSolutionNeo::update()
         mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     }
 
-    changed_inner = refine_inner.refine();
-    changed_outer = refine_outer.refine();
+    changed_inner = refine_inner.refine("Inner_");
+    changed_outer = refine_outer.refine("Outer_");
 }
 
 void SurfaceSolutionNeo::update_inner()
@@ -232,7 +241,7 @@ void SurfaceSolutionNeo::update_inner()
         auto dis = dis_field->get_value(pos);
         builderDistance.push_back(SpMatTriple{ r, r, dis });
         builderIntensity.push_back(SpMatTriple{ r, r,
-            dis - epsilon < 0 ? 0 : dis - epsilon });
+            _pinch(0.0f, dis - epsilon, 2 * epsilon) });
         for (int c = 0; c < 3; c++)
         {
             data_position[r][c] = pos[c];
@@ -247,7 +256,7 @@ void SurfaceSolutionNeo::update_inner()
 
     // BuildLaplacianMatrixBuilderOuter();
     // InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
-
+    //
     // // Extract Position.
     // std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
     // SpMatBuilder builderDistance_outer;
@@ -262,7 +271,7 @@ void SurfaceSolutionNeo::update_inner()
     //     auto dis = dis_field->get_value(pos);
     //     builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
     //     builderIntensity_outer.push_back(SpMatTriple{ r, r,
-    //         dis - epsilon < 0 ? 0 : dis - epsilon });
+    //         _pinch(0.0f, dis - epsilon, 2 * epsilon) });
     //     for (int c = 0; c < 3; c++)
     //     {
     //         data_position_outer[r][c] = pos[c];
@@ -341,7 +350,7 @@ void SurfaceSolutionNeo::update_inner()
     //     mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     // }
 
-    changed_inner = refine_inner.refine();
+    changed_inner = refine_inner.refine("Inner_");
     // changed_outer = refine_outer.refine();
 }
 
@@ -389,7 +398,7 @@ void SurfaceSolutionNeo::update_outer()
     //     auto dis = dis_field->get_value(pos);
     //     builderDistance.push_back(SpMatTriple{ r, r, dis });
     //     builderIntensity.push_back(SpMatTriple{ r, r,
-    //         dis - epsilon < 0 ? 0 : dis - epsilon });
+    //         _pinch(0.0f, dis - epsilon, 2 * epsilon) });
     //     for (int c = 0; c < 3; c++)
     //     {
     //         data_position[r][c] = pos[c];
@@ -419,7 +428,7 @@ void SurfaceSolutionNeo::update_outer()
         auto dis = dis_field->get_value(pos);
         builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
         builderIntensity_outer.push_back(SpMatTriple{ r, r,
-            dis - epsilon < 0 ? 0 : dis - epsilon });
+            _pinch(0.0f, dis - epsilon, 2 * epsilon) });
         for (int c = 0; c < 3; c++)
         {
             data_position_outer[r][c] = pos[c];
@@ -499,7 +508,7 @@ void SurfaceSolutionNeo::update_outer()
     }
 
     // changed_inner = refine_inner.refine();
-    changed_outer = refine_outer.refine();
+    changed_outer = refine_outer.refine("Outer_");
 }
 
 void SurfaceSolutionNeo::UpdateBasicMeshInformationInner()

@@ -289,6 +289,11 @@ int MeshRefineSolution::_Collapse(float edge_collapse_tolerance, bool& changed)
 
 bool MeshRefineSolution::refine()
 {
+    return refine("");
+}
+
+bool MeshRefineSolution::refine(const QString &pre)
+{
     algorithm_config.reload();
     bool changed = false;
 
@@ -321,26 +326,27 @@ bool MeshRefineSolution::refine()
     // Configure
     float edge_split_tolerance = INFINITY;
     float edge_collapse_tolerance = 0.0f;
-    float edge_flip_tolerance = algorithm_config.get_float("Edge_Flip_Tolerance", 2.5f);
+    float edge_flip_tolerance = algorithm_config.get_float(
+        pre + "Edge_Flip_Tolerance", 2.5f);
   
-    if (algorithm_config.get_bool("Reletive_Tolerance", true))
+    if (algorithm_config.get_bool(pre + "Reletive_Tolerance", true))
     {
         edge_split_tolerance = ave_edge_len *
-            algorithm_config.get_float("Edge_Split_Tolerance", 2.5f);
+            algorithm_config.get_float(pre + "Edge_Split_Tolerance", 2.5f);
         edge_collapse_tolerance = ave_edge_len *
-            algorithm_config.get_float("Edge_Collapse_Tolerance", 0.2f);
+            algorithm_config.get_float(pre + "Edge_Collapse_Tolerance", 0.2f);
     }
     else
     {
         edge_split_tolerance = 1.0f *
-            algorithm_config.get_float("Edge_Split_Tolerance", 2.5f);
+            algorithm_config.get_float(pre + "Edge_Split_Tolerance", 2.5f);
         edge_collapse_tolerance = 1.0f *
-            algorithm_config.get_float("Edge_Collapse_Tolerance", 0.2f);
+            algorithm_config.get_float(pre + "Edge_Collapse_Tolerance", 0.2f);
     }
     
-    int iter_limit_split = algorithm_config.get_int("Edge_Split_Iteration_limit", 3);
-    int iter_limit_flip = algorithm_config.get_int("Edge_Flip_Iteration_limit", 5);
-    int iter_limit_collapse = algorithm_config.get_int("Edge_Collapse_Iteration_limit", 3);
+    int iter_limit_split = algorithm_config.get_int(pre + "Edge_Split_Iteration_limit", 3);
+    int iter_limit_flip = algorithm_config.get_int(pre + "Edge_Flip_Iteration_limit", 5);
+    int iter_limit_collapse = algorithm_config.get_int(pre + "Edge_Collapse_Iteration_limit", 3);
 
     // Split
     for (int i = 0; i < iter_limit_split; i++)

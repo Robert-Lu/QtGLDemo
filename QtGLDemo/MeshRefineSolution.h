@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ConsoleMessageManager.h"
+#include "TextConfigLoader.h"
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 #include <OpenMesh/Core/System/config.h>
@@ -17,6 +19,7 @@ public:
     MeshRefineSolution(TriMesh &s, ConsoleMessageManager &m, TextConfigLoader &ac);
     ~MeshRefineSolution();
     bool refine();
+    bool refine(const QString &pre);
 
 protected:
     TriMesh &mesh;
