@@ -37,6 +37,7 @@ public:
     OpenMesh::Vec3f get_dir(OpenMesh::Vec3f);
     bool save_to_file(QDataStream &out);
 
+    // stats
     struct StatBundle
     {
         int grid_cnt;
@@ -49,7 +50,6 @@ public:
     kdt::kdTree *kdtree;
     std::vector<kdt::kdPoint> *pts;
     int max_div;
-    // stats
 
 private:
     void _expand(OcNode *root, int limit);

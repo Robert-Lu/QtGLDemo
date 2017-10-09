@@ -2,6 +2,7 @@
 #include "SurfaceSolutionDual.h"
 
 #define MOD(x, m) (((x) + (m)) % (m))
+#define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
 
 inline float _pinch(float min, float val, float max)
 {
@@ -27,6 +28,11 @@ inline float _area(TriMesh &mesh, FaceHandle fh)
     Vec3f AC = pos[2] - pos[0];
     return OpenMesh::cross(AB, AC).norm() / 2;
 }
+
+//inline Vec3f kdpoint_to_vec3f(kdt::kdPoint p)
+//{
+//    return{ p[0], p[1], p[2] };
+//}
 
 SurfaceSolutionNeo::SurfaceSolutionNeo(TriMesh& si, TriMesh& so, OcTreeField* d, ConsoleMessageManager& m, TextConfigLoader& ac) :
     SurfaceSolutionMatlab(si, d, m, ac),
@@ -319,6 +325,30 @@ void SurfaceSolutionNeo::update_inner()
     // InputSparseMatrixToEngine(engine, "Mass_Outer", builderMass);
     // InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
 
+    // Extract Repulsion from kdtree
+    std::vector<std::vector<float>> data_repulsion(num_verts_inner, std::vector<float>(3, 0.0f));
+    bool enable_repulsion = algorithm_config.get_bool("EnableRepulsion", true);
+    if (enable_repulsion)
+    {
+        // build outer kdtree
+        BuildKdtreeOuter();
+
+        for (int r = 0; r < num_verts_inner; r++)
+        {
+            auto pos = mesh_inner.point(verts_inner[r]);
+            kdt::kdPoint p{ pos[0], pos[1], pos[2] };
+            auto idx = kdtree_outer->nnSearch(p);
+            auto nearest = pts_outer[idx];
+            auto dis = NORM3(p, nearest);
+            if (dis <= 2 * epsilon)
+            {
+                float factor = _pinch(0.0f, dis - epsilon, 1.0f);
+                data_repulsion[r][0] = factor;
+                verts_tag[verts_inner[r]] = 1;
+            }
+        }
+    }
+    InputDenseMatrixToEngine(engine, "Rep_Inner", data_repulsion);
 
     // Main.
     auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
@@ -385,11 +415,14 @@ void SurfaceSolutionNeo::update_outer()
     // InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacianInner);
 
     // Extract Position.
-    std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
+    BuildLaplacianMatrixBuilderOuter();
+    InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
+
+    std::vector<std::vector<float>> data_position(num_verts_outer, std::vector<float>(3, 0.0f));
     SpMatBuilder builderDistance;
     SpMatBuilder builderIntensity;
-    std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
-    std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_normal(num_verts_outer, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_grad_potential(num_verts_outer, std::vector<float>(3, 0.0f));
     // for (int r = 0; r < num_verts_inner; r++)
     // {
     //     auto pos = mesh_inner.point(verts_inner[r]);
@@ -410,9 +443,6 @@ void SurfaceSolutionNeo::update_outer()
     // InputSparseMatrixToEngine(engine, "Dis_Inner", builderDistance);
     // InputSparseMatrixToEngine(engine, "Its_Inner", builderIntensity);
     // InputDenseMatrixToEngine(engine, "N_Inner", data_normal);
-
-    BuildLaplacianMatrixBuilderOuter();
-    InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
 
     // Extract Position.
     std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
@@ -678,77 +708,45 @@ void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderOuter()
     }
 }
 
-/*
-void SurfaceSolutionNeo::BuildLaplacianMatrixBuilder(SpMatBuilder& builder, TriMesh &M)
+void SurfaceSolutionNeo::BuildKdtreeInner()
 {
-    num_verts = M.n_vertices();
-    verts.clear();
-    num_neighbors.clear();
-    neighbors.clear();
-    vert_index.clear();
-    for (auto vh : M.vertices())
+    if (!changed_inner && kdtree_inner != nullptr)
+        return;
+
+    if (changed_inner)
+        UpdateBasicMeshInformationInner();
+
+    // Build kdTree
+    pts_inner.clear();
+    for (auto vh : mesh_inner.vertices())
     {
-        vert_index[vh] = verts.size();
-        verts.push_back(vh);
-    }
-    for (auto vh : M.vertices())
-    {
-        neighbors.push_back(std::vector<int>());
-        int neighbor_count = 0;
-        auto vv_iter = M.vv_begin(vh);
-        for (; vv_iter != M.vv_end(vh); vv_iter++)
-        {
-            neighbor_count++;
-            neighbors.back().push_back(vert_index[*vv_iter]);
-        }
-        num_neighbors.push_back(neighbor_count);
+        auto x = mesh_inner.point(vh)[0];
+        auto y = mesh_inner.point(vh)[1];
+        auto z = mesh_inner.point(vh)[2];
+        pts_inner.push_back({ x, y, z });
     }
 
-    builder.clear();
-
-    auto weight_policy = algorithm_config.get_string("LaplacianWeight", "uniform");
-
-    for (int i = 0; i < num_verts; i++)
-    {
-        float weight_sum = 0.0f;
-
-        if (weight_policy == "uniform")
-        {
-            for (int neib_vert_idx : neighbors[i])
-            {
-                float weight = 1.0f; // uniform
-                builder.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
-                weight_sum += weight;
-            }
-        }
-        else if (weight_policy == "cotangent")
-        {
-            int degree = neighbors[i].size();
-            for (int j = 0; j < degree; ++j)
-            {
-                int vj = neighbors[i][j];
-                int vleft = neighbors[i][MOD(j + 1, degree)];
-                int vright = neighbors[i][MOD(j - 1, degree)];
-
-                auto weight = _cotangent_for_angle_AOB(i, vleft, vj) +
-                    _cotangent_for_angle_AOB(i, vright, vj);
-                weight_sum += weight;
-                builder.push_back(SpMatTriple{ i, vj, -weight });
-            }
-        }
-        else
-        {
-            msg.log("Unknown Laplacian policy ", weight_policy, ERROR_MSG);
-            // still use uniform
-            for (int neib_vert_idx : neighbors[i])
-            {
-                float weight = 1.0f; // uniform
-                builder.push_back(SpMatTriple{ i, neib_vert_idx, -weight });
-                weight_sum += weight;
-            }
-        }
-
-        builder.push_back(SpMatTriple{ i, i, weight_sum });
-    }
+    kdtree_inner = new kdt::kdTree(pts_inner);
 }
-*/
+
+void SurfaceSolutionNeo::BuildKdtreeOuter()
+{
+    if (!changed_outer && kdtree_outer != nullptr)
+        return;
+
+    if (changed_outer)
+        UpdateBasicMeshInformationOuter();
+
+    // Build kdTree
+    pts_outer.clear();
+    for (auto vh : mesh_outer.vertices())
+    {
+        auto x = mesh_outer.point(vh)[0];
+        auto y = mesh_outer.point(vh)[1];
+        auto z = mesh_outer.point(vh)[2];
+        pts_outer.push_back({ x, y, z });
+    }
+
+    kdtree_outer = new kdt::kdTree(pts_outer);
+}
+
