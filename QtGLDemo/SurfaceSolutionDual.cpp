@@ -326,7 +326,7 @@ void SurfaceSolutionNeo::update_inner()
     // InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
 
     // Extract Repulsion from kdtree
-    std::vector<std::vector<float>> data_repulsion(num_verts_inner, std::vector<float>(3, 0.0f));
+    std::vector<std::vector<float>> data_repulsion(num_verts_inner, std::vector<float>(1, 0.0f));
     bool enable_repulsion = algorithm_config.get_bool("EnableRepulsion", true);
     if (enable_repulsion)
     {
