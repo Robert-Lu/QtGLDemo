@@ -9,4 +9,3 @@ public:
     static int Toc() { return T.elapsed(); }
 };
 
-QTime QTiming::T{};

@@ -1,5 +1,12 @@
 #include "stdafx.h"
+#include "QTiming.h"
 #include "SurfaceSolutionDual.h"
+
+#define TIC QTiming::Tic();
+#define TOC(s) {\
+    QString prompt = QString(s " in %0 ms.").arg(QTiming::Toc());\
+    msg.log(prompt, INFO_MSG);\
+}
 
 #define MOD(x, m) (((x) + (m)) % (m))
 #define NORM3(p, q) (sqrtf(powf((p)[0] - (q)[0], 2) + powf((p)[1] - (q)[1], 2) + powf((p)[2] - (q)[2], 2)))
@@ -326,7 +333,7 @@ void SurfaceSolutionNeo::update_inner()
     // InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
 
     // Extract Repulsion from kdtree
-    std::vector<std::vector<float>> data_repulsion(num_verts_inner, std::vector<float>(1, 0.0f));
+    SpMatBuilder builderRepulaionInner;
     bool enable_repulsion = algorithm_config.get_bool("EnableRepulsion", true);
     if (enable_repulsion)
     {
@@ -340,15 +347,18 @@ void SurfaceSolutionNeo::update_inner()
             auto idx = kdtree_outer->nnSearch(p);
             auto nearest = pts_outer[idx];
             auto dis = NORM3(p, nearest);
-            if (dis <= 2 * epsilon)
-            {
-                float factor = _pinch(0.0f, dis - epsilon, 1.0f);
-                data_repulsion[r][0] = factor;
-                verts_tag[verts_inner[r]] = 1;
-            }
+            float factor = _pinch(0.0f, (dis - 1.5f * epsilon) / epsilon, 1.0f);
+            builderRepulaionInner.push_back(SpMatTriple{ r, r, factor });
         }
     }
-    InputDenseMatrixToEngine(engine, "Rep_Inner", data_repulsion);
+    else
+    {
+        for (int r = 0; r < num_verts_inner; r++)
+        {
+            builderRepulaionInner.push_back(SpMatTriple{ r, r, 1.0f });
+        }
+    }
+    InputSparseMatrixToEngine(engine, "Rep_Inner", builderRepulaionInner);
 
     // Main.
     auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
@@ -359,6 +369,7 @@ void SurfaceSolutionNeo::update_inner()
         return;
     }
 
+    TIC
     // Matlab Set Output
     char p[1000] = "";
     engOutputBuffer(engine, p, 1000);
@@ -366,7 +377,7 @@ void SurfaceSolutionNeo::update_inner()
 
     if (strlen(p) > 0)
         msg.log(p, INFO_MSG);
-
+    TOC("Matlab work")
 
     // Retrieve Data
     auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
@@ -380,8 +391,10 @@ void SurfaceSolutionNeo::update_inner()
     //     mesh_outer.point(verts_outer[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     // }
 
+    TIC
     changed_inner = refine_inner.refine("Inner_");
     // changed_outer = refine_outer.refine();
+    TOC("refine")
 }
 
 void SurfaceSolutionNeo::update_outer()
@@ -506,6 +519,33 @@ void SurfaceSolutionNeo::update_outer()
     InputSparseMatrixToEngine(engine, "Mass_Outer", builderMass);
     InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
 
+    // Extract Repulsion from kdtree
+    SpMatBuilder builderRepulaionOuter;
+    bool enable_repulsion = algorithm_config.get_bool("EnableRepulsion", true);
+    if (enable_repulsion)
+    {
+        // build outer kdtree
+        BuildKdtreeInner();
+
+        for (int r = 0; r < num_verts_outer; r++)
+        {
+            auto pos = mesh_outer.point(verts_outer[r]);
+            kdt::kdPoint p{ pos[0], pos[1], pos[2] };
+            auto idx = kdtree_inner->nnSearch(p);
+            auto nearest = pts_inner[idx];
+            auto dis = NORM3(p, nearest);
+            float factor = _pinch(0.0f, (dis - 1.5f * epsilon) / epsilon, 1.0f);
+            builderRepulaionOuter.push_back(SpMatTriple{ r, r, factor });
+        }
+    }
+    else
+    {
+        for (int r = 0; r < num_verts_outer; r++)
+        {
+            builderRepulaionOuter.push_back(SpMatTriple{ r, r, 1.0f });
+        }
+    }
+    InputSparseMatrixToEngine(engine, "Rep_Outer", builderRepulaionOuter);
 
     // Main.
     auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
@@ -516,6 +556,7 @@ void SurfaceSolutionNeo::update_outer()
         return;
     }
 
+    TIC
     // Matlab Set Output
     char p[1000] = "";
     engOutputBuffer(engine, p, 1000);
@@ -523,7 +564,7 @@ void SurfaceSolutionNeo::update_outer()
 
     if (strlen(p) > 0)
         msg.log(p, INFO_MSG);
-
+    TOC("Matlab work")
 
     // Retrieve Data
     // auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
@@ -538,11 +579,14 @@ void SurfaceSolutionNeo::update_outer()
     }
 
     // changed_inner = refine_inner.refine();
+    TIC
     changed_outer = refine_outer.refine("Outer_");
+    TOC("refine")
 }
 
 void SurfaceSolutionNeo::UpdateBasicMeshInformationInner()
 {
+    TIC
     num_verts_inner = mesh_inner.n_vertices();
     verts_inner.clear();
     num_neighbors_inner.clear();
@@ -567,10 +611,12 @@ void SurfaceSolutionNeo::UpdateBasicMeshInformationInner()
     }
 
     changed_inner = false;
+    TOC("basic info inner")
 }
 
 void SurfaceSolutionNeo::UpdateBasicMeshInformationOuter()
 {
+    TIC
     num_verts_outer = mesh_outer.n_vertices();
     verts_outer.clear();
     num_neighbors_outer.clear();
@@ -595,15 +641,17 @@ void SurfaceSolutionNeo::UpdateBasicMeshInformationOuter()
     }
 
     changed_outer = false;
+    TOC("basic info outer")
 }
 
 void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderInner()
 {
-    if (changed_inner)
+    if (changed_inner || builderLaplacianInner.empty())
         UpdateBasicMeshInformationInner();
     else
         return;
 
+    TIC
     builderLaplacianInner.clear();
 
     auto weight_policy = algorithm_config.get_string("LaplacianWeight", "uniform");
@@ -650,16 +698,17 @@ void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderInner()
 
         builderLaplacianInner.push_back(SpMatTriple{ i, i, weight_sum });
     }
+    TOC("update Lap inner")
 }
 
 void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderOuter()
 {
-
-    if (changed_outer)
+    if (changed_outer || builderLaplacianOuter.empty())
         UpdateBasicMeshInformationOuter();
     else
         return;
 
+    TIC
     builderLaplacianOuter.clear();
 
     auto weight_policy = algorithm_config.get_string("LaplacianWeight", "uniform");
@@ -706,6 +755,7 @@ void SurfaceSolutionNeo::BuildLaplacianMatrixBuilderOuter()
 
         builderLaplacianOuter.push_back(SpMatTriple{ i, i, weight_sum });
     }
+    TOC("update Lap outer")
 }
 
 void SurfaceSolutionNeo::BuildKdtreeInner()
@@ -716,6 +766,7 @@ void SurfaceSolutionNeo::BuildKdtreeInner()
     if (changed_inner)
         UpdateBasicMeshInformationInner();
 
+    TIC
     // Build kdTree
     pts_inner.clear();
     for (auto vh : mesh_inner.vertices())
@@ -727,6 +778,7 @@ void SurfaceSolutionNeo::BuildKdtreeInner()
     }
 
     kdtree_inner = new kdt::kdTree(pts_inner);
+    TOC("build kdtree inner")
 }
 
 void SurfaceSolutionNeo::BuildKdtreeOuter()
@@ -737,6 +789,7 @@ void SurfaceSolutionNeo::BuildKdtreeOuter()
     if (changed_outer)
         UpdateBasicMeshInformationOuter();
 
+    TIC
     // Build kdTree
     pts_outer.clear();
     for (auto vh : mesh_outer.vertices())
@@ -748,5 +801,6 @@ void SurfaceSolutionNeo::BuildKdtreeOuter()
     }
 
     kdtree_outer = new kdt::kdTree(pts_outer);
+    TOC("build kdtree outer")
 }
 

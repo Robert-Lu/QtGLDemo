@@ -110,6 +110,7 @@
     <ClCompile Include="MeshRefineSolution.cpp" />
     <ClCompile Include="OpenGLCamera.cpp" />
     <ClCompile Include="QtGLDemo.cpp" />
+    <ClCompile Include="QTiming.cpp" />
     <ClCompile Include="RenderingWidget.cpp" />
     <ClCompile Include="RenderingWidget__Script.cpp" />
     <ClCompile Include="ScriptLoader.cpp" />
