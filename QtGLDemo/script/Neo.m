@@ -1,5 +1,6 @@
 if update_Inner
     F_Inner = area_press * Rep_Inner * Area_Inner * Its_Inner * N_Inner;
+    % F_Inner = area_press * Rep_Inner * Its_Inner * N_Inner;
 
     LHS = [w_L * Lap_Inner; (w_P + w_F) * Mass_Inner];
     RHS = [zeros(size_Inner, 3); w_P * Mass_Inner * V_Inner + w_F * (Mass_Inner * V_Inner + F_Inner)];
