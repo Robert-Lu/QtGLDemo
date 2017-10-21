@@ -764,7 +764,10 @@ void SurfaceSolutionNeo::BuildKdtreeInner()
         return;
 
     if (changed_inner)
+    {
         UpdateBasicMeshInformationInner();
+        changed_inner = true;
+    }
 
     TIC
     // Build kdTree
@@ -787,7 +790,10 @@ void SurfaceSolutionNeo::BuildKdtreeOuter()
         return;
 
     if (changed_outer)
+    {
         UpdateBasicMeshInformationOuter();
+        changed_outer = true;
+    }
 
     TIC
     // Build kdTree

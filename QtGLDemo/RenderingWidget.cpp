@@ -1698,12 +1698,16 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
         }
 
         auto fv_it = mesh_inner.fv_iter(f_it);
+        auto face_nor = mesh_inner.calc_face_normal(f_it);
 
         for (; fv_it; ++fv_it)
         {
             auto vh = *fv_it;
             auto pos = mesh_inner.point(vh);
             auto nor = mesh_inner.normal(vh);
+
+            if (config_bundle.render_config.face_normal)
+                nor = face_nor;
 
             D.push_back({ pos, color, nor });
         }
@@ -1752,12 +1756,16 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
         }
 
         auto fv_it = mesh_outer.fv_iter(f_it);
+        auto face_nor = mesh_outer.calc_face_normal(f_it);
 
         for (; fv_it; ++fv_it)
         {
             auto vh = *fv_it;
             auto pos = mesh_outer.point(vh);
             auto nor = mesh_outer.normal(vh);
+
+            if (config_bundle.render_config.face_normal)
+                nor = face_nor;
 
             D.push_back({ pos, color, nor });
         }

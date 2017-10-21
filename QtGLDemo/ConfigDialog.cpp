@@ -49,8 +49,10 @@ ConfigDialog::ConfigDialog(ConfigBundle &c, QWidget *parent)
         //groupRenderLayout->addWidget(new QLabel(tr("Draw Face:")), 1, 0);
         checkCullFace = new QCheckBox("Cull Face");
         checkDrawFace = new QCheckBox("Draw Face");
+        checkFaceNormal= new QCheckBox("Face Normal");
         groupRenderLayout->addWidget(checkCullFace, 0, 0);
         groupRenderLayout->addWidget(checkDrawFace, 1, 0);
+        groupRenderLayout->addWidget(checkFaceNormal, 2, 0);
         groupRender->setLayout(groupRenderLayout);
     }
     gridLayout->addWidget(groupRender, 0, 1);
@@ -187,6 +189,7 @@ void ConfigDialog::initContentFromConfig()
 
     checkCullFace->setChecked(config.render_config.cull_face);
     checkDrawFace->setChecked(config.render_config.draw_face);
+    checkFaceNormal->setChecked(config.render_config.face_normal);
 
     lineAmbient->setText(tr("%0").arg(config.render_config.material.ambient));
     lineDiffuse->setText(tr("%0").arg(config.render_config.material.diffuse));
@@ -245,6 +248,7 @@ void ConfigDialog::setConfigFromContent()
 
     config.render_config.cull_face = checkCullFace->isChecked();
     config.render_config.draw_face = checkDrawFace->isChecked();
+    config.render_config.face_normal = checkFaceNormal->isChecked();
 
     config.render_config.material.ambient = lineAmbient->text().toFloat();
     config.render_config.material.diffuse = lineDiffuse->text().toFloat();

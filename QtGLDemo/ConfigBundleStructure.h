@@ -19,6 +19,7 @@ struct ConfigBundle
     {
         bool cull_face{ true };
         bool draw_face{ true };
+        bool face_normal{ false };
         struct Material
         {
             float ambient{ 0.3f };

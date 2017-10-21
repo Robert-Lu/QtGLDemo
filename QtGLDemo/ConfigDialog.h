@@ -30,6 +30,7 @@ private:
 
     QCheckBox *checkCullFace;
     QCheckBox *checkDrawFace;
+    QCheckBox *checkFaceNormal;
 
     QLineEdit *lineAmbient;
     QLineEdit *lineDiffuse;
