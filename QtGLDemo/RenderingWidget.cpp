@@ -248,7 +248,7 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename, TriMesh &mesh)
         InfoType);
 }
 
-VertexHandle RenderingWidget::SelectVertexByScreenPosition(const QPoint &pos, float &error)
+VertexHandle RenderingWidget::SelectVertexByScreenPositionInner(const QPoint &pos, float &error)
 {
     float scx = pos.x(), 
           scy = pos.y();
@@ -288,16 +288,56 @@ VertexHandle RenderingWidget::SelectVertexByScreenPosition(const QPoint &pos, fl
     return vh;
 }
 
-void RenderingWidget::TopologyMerge()
+VertexHandle RenderingWidget::SelectVertexByScreenPositionOuter(const QPoint &pos, float &error)
 {
-    if (face_range.size() != 2)
+    float scx = pos.x(),
+        scy = pos.y();
+    scx -= this->width() * 0.5f;
+    scy -= this->height() * 0.5f;
+    scx /= this->width() * 0.5f;
+    scy /= this->height() * -0.5f;
+
+    QMatrix4x4 mat_model;
+    QMatrix4x4 mat_view = camera.view_mat();
+    QMatrix4x4 mat_projection;
+    mat_projection.perspective(45.0f,
+        float(this->width()) / float(this->height()),
+        0.1f, 100.f);
+    QMatrix4x4 MVP = mat_projection * mat_view * mat_model;
+
+    float min_disp = INFINITY;
+    float min_error = INFINITY;
+    VertexHandle vh;
+    for (auto v_it : mesh_outer.vertices())
     {
-        msg.log("not 2 face");
+        auto p{ mesh_outer.point(v_it) };
+        QVector4D pos{ p[0], p[1], p[2], 1.0f };
+        auto cs_position = mat_view * mat_model * pos;
+        auto scpos = mat_projection * cs_position;
+        scpos /= scpos.w();
+        float distToCamera = -cs_position.z();
+        float this_error = powf((scpos.x() - scx), 2.0f) + powf((scpos.y() - scy), 2.0f);
+        if (this_error < error && distToCamera < min_disp)
+        {
+            vh = v_it;
+            min_disp = distToCamera;
+            min_error = this_error;
+        }
+    }
+    error = min_error;
+    return vh;
+}
+
+void RenderingWidget::TopologyMergeInner()
+{
+    if (face_range_inner.size() != 2)
+    {
+        msg.log("not 2 face inter");
         return;
     }
 
     std::vector<FaceHandle> faces;
-    std::copy(face_range.begin(), face_range.end(), std::back_inserter(faces));
+    std::copy(face_range_inner.begin(), face_range_inner.end(), std::back_inserter(faces));
     auto fa = faces[0];
     auto fb = faces[1];
     OpenMesh::Vec3f pa[3];
@@ -351,6 +391,71 @@ void RenderingWidget::TopologyMerge()
     mesh_inner.add_face(vhb[a], vha[1], vhb[c]);
     mesh_inner.add_face(vhb[c], vha[2], vhb[b]);
     mesh_inner.add_face(vhb[b], vha[0], vhb[a]);
+}
+
+void RenderingWidget::TopologyMergeOuter()
+{
+    if (face_range_outer.size() != 2)
+    {
+        msg.log("not 2 face outer");
+        return;
+    }
+
+    std::vector<FaceHandle> faces;
+    std::copy(face_range_outer.begin(), face_range_outer.end(), std::back_inserter(faces));
+    auto fa = faces[0];
+    auto fb = faces[1];
+    OpenMesh::Vec3f pa[3];
+    VertexHandle vha[3];
+    OpenMesh::Vec3f pb[3];
+    VertexHandle vhb[3];
+
+    auto fv_ita = mesh_outer.fv_iter(fa);
+    for (int i = 0; fv_ita; ++fv_ita)
+    {
+        pa[i] = mesh_outer.point(*fv_ita);
+        vha[i] = *fv_ita;
+        i++;
+    }
+
+    auto fv_itb = mesh_outer.fv_iter(fb);
+    for (int i = 0; fv_itb; ++fv_itb)
+    {
+        pb[i] = mesh_outer.point(*fv_itb);
+        vhb[i] = *fv_itb;
+        i++;
+    }
+
+    // find nearest point of pa[0]
+    float min_dis = INFINITY;
+    int offset = 0;
+    for (int i = 0; i < 3; i++)
+    {
+        float dis = (pb[i] - pa[0]).norm();
+        if (dis < min_dis)
+        {
+            min_dis = dis;
+            offset = i;
+        }
+    }
+
+    int a, b, c;
+    a = offset; // 0 <-> a
+    b = (offset + 1) % 3; // 1 <-> b
+    c = (offset + 2) % 3; // 2 <-> c
+
+    // Delete all the faces and keep all the vertices as isolated.
+    mesh_outer.request_face_status();
+    for (auto fh : faces)
+        mesh_outer.delete_face(fh, false);
+    mesh_outer.garbage_collection();
+
+    mesh_outer.add_face(vha[0], vha[1], vhb[a]);
+    mesh_outer.add_face(vha[1], vha[2], vhb[c]);
+    mesh_outer.add_face(vha[2], vha[0], vhb[b]);
+    mesh_outer.add_face(vhb[a], vha[1], vhb[c]);
+    mesh_outer.add_face(vhb[c], vha[2], vhb[b]);
+    mesh_outer.add_face(vhb[b], vha[0], vhb[a]);
 }
 
 //void RenderingWidget::GenerateSphereMesh()
@@ -1533,6 +1638,7 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
     setCursor(Qt::ArrowCursor);
     current_position_ = e->pos();
     bool has_ctrl = e->modifiers() & Qt::ControlModifier;
+    bool has_shift = e->modifiers() & Qt::ShiftModifier;
 
     if (tagSlicingChanged)
     {
@@ -1554,17 +1660,35 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
     }
     else if (e->button() == Qt::RightButton)
     {
-        if (!has_ctrl)
-        {
-            vertex_range.clear();
-            face_range.clear();
+        if (!has_shift)
+        { // inner
+            if (!has_ctrl)
+            {
+                vertex_range_inner.clear();
+                face_range_inner.clear();
+            }
+            float error = 0.0005;
+            VertexHandle v = SelectVertexByScreenPositionInner(e->pos(), error);
+            if (error < 0.0005)
+            {
+                vertex_range_inner.insert(v);
+            }
         }
-        float error = 0.0005;
-        VertexHandle v = SelectVertexByScreenPosition(e->pos(), error);
-        if (error < 0.0005)
-        {
-            vertex_range.insert(v);
+        else
+        { // outer
+            if (!has_ctrl)
+            {
+                vertex_range_outer.clear();
+                face_range_outer.clear();
+            }
+            float error = 0.0005;
+            VertexHandle v = SelectVertexByScreenPositionOuter(e->pos(), error);
+            if (error < 0.0005)
+            {
+                vertex_range_outer.insert(v);
+            }
         }
+
     }
     GenerateBufferFromMesh(vertex_data_mesh);
     buffer_need_update_mesh = true;
@@ -1706,7 +1830,10 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
             this->GenerateSphereMeshInner();
         break;
     case Qt::Key_M:
-        TopologyMerge();
+        if (has_shift)
+            TopologyMergeOuter();
+        else
+            TopologyMergeInner();
         break;
     case Qt::Key_U:
         if (has_shift && has_ctrl)
@@ -1837,7 +1964,7 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
             if (config_bundle.render_config.face_normal)
                 nor = face_nor;
 
-            if (vertex_range.find(vh) != vertex_range.end())
+            if (vertex_range_inner.find(vh) != vertex_range_inner.end())
             {
                 OpenMesh::Vec3f red = { 1.0f, 0.0f, 0.0f };
                 D.push_back({ pos, red, nor });
@@ -1847,7 +1974,7 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
                 D.push_back({ pos, color, nor });
         }
         if (face_cnt == 3)
-            face_range.insert(f_it);
+            face_range_inner.insert(f_it);
     }
 
     vertex_data_mesh_inner_size = D.size();
@@ -1895,6 +2022,7 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
         auto fv_it = mesh_outer.fv_iter(f_it);
         auto face_nor = mesh_outer.calc_face_normal(f_it);
 
+        int face_cnt = 0;
         for (; fv_it; ++fv_it)
         {
             auto vh = *fv_it;
@@ -1904,8 +2032,17 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
             if (config_bundle.render_config.face_normal)
                 nor = face_nor;
 
-            D.push_back({ pos, color, nor });
+            if (vertex_range_outer.find(vh) != vertex_range_outer.end())
+            {
+                OpenMesh::Vec3f red = { 1.0f, 0.0f, 0.0f };
+                D.push_back({ pos, red, nor });
+                face_cnt += 1;
+            }
+            else
+                D.push_back({ pos, color, nor });
         }
+        if (face_cnt == 3)
+            face_range_outer.insert(f_it);
     }
 }
 

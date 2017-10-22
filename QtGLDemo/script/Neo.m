@@ -18,10 +18,11 @@ if update_Inner
 end
 
 if update_Outer
-    F_Outer = -1 * area_press * Rep_Outer * Area_Outer * Its_Outer * N_Outer;
+    F_Outer = -1 * area_press * Rep_Outer * Its_Outer * N_Outer;
+    % F_Outer = -1 * area_press * Rep_Outer * Area_Outer * Its_Outer * N_Outer;
 
-    LHS = [w_L * Lap_Outer; (w_P + w_F) * Mass_Outer];
-    RHS = [zeros(size_Outer, 3); w_P * Mass_Outer * V_Outer + w_F * (Mass_Outer * V_Outer + F_Outer)];
+    LHS = [w_L * Lap_Outer; (w_P + w_F) * speye(size_Outer)];
+    RHS = [zeros(size_Outer, 3); w_P * V_Outer + w_F * (V_Outer + F_Outer)];
 
     V_prime_Outer = LHS \ RHS;
 end
