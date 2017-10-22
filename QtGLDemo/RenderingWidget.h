@@ -135,6 +135,9 @@ private:
     std::set<VertexHandle> vertex_range_outer;
     std::set<FaceHandle> face_range_outer;
 
+    // Tension
+    std::map<VertexHandle, float> map_tension_inner;
+
     // Need Update Buffer
     bool buffer_need_update_mesh;
     bool buffer_need_update_pc;

@@ -365,9 +365,9 @@ void SurfaceSolutionBase::RefineSurface()
 
 
 SurfaceSolutionBase::SurfaceSolutionBase(TriMesh& s, OcTreeField *d, 
-    ConsoleMessageManager &m, TextConfigLoader &ac)
+    ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &mt)
     : mesh(s), dis_field(d), msg(m), algorithm_config(ac), 
-      surface_changed(false), refine(s, m, ac)
+      surface_changed(false), refine(s, m, ac, mt), map_tension_inner(mt)
 {
     // Extract basic information from the mesh.
     UpdateBasicMeshInformation();

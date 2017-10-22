@@ -41,9 +41,9 @@ inline float _area(TriMesh &mesh, FaceHandle fh)
 //    return{ p[0], p[1], p[2] };
 //}
 
-SurfaceSolutionNeo::SurfaceSolutionNeo(TriMesh& si, TriMesh& so, OcTreeField* d, ConsoleMessageManager& m, TextConfigLoader& ac) :
-    SurfaceSolutionMatlab(si, d, m, ac),
-    mesh_inner(si), mesh_outer(so), refine_inner(si, m, ac), refine_outer(so, m, ac)
+SurfaceSolutionNeo::SurfaceSolutionNeo(TriMesh& si, TriMesh& so, OcTreeField* d, ConsoleMessageManager& m, TextConfigLoader& ac, std::map<VertexHandle, float> &mt) :
+    SurfaceSolutionMatlab(si, d, m, ac, mt), 
+    mesh_inner(si), mesh_outer(so), refine_inner(si, m, ac, mt), refine_outer(so, m, ac, mt)
 {
     msg.log("Neo Test Method Iteration.");
 }
@@ -342,6 +342,8 @@ void SurfaceSolutionNeo::update_inner()
     auto data = RetieveDenseMatricFromEngine(engine, "V_prime_Inner", mesh_inner.n_vertices(), 3);
     for (int i = 0; i < mesh_inner.n_vertices(); i++)
     {
+        auto v_ = Vec3f{ data[i][0], data[i][1], data[i][2] };
+
         mesh_inner.point(verts_inner[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     }
     // data = RetieveDenseMatricFromEngine(engine, "V_prime_Outer", mesh_outer.n_vertices(), 3);

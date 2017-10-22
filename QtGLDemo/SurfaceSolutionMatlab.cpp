@@ -79,8 +79,8 @@ std::vector<std::vector<float>> SurfaceSolutionMatlab::RetieveDenseMatricFromEng
 }
 
 
-SurfaceSolutionMatlab::SurfaceSolutionMatlab(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac)
-    : SurfaceSolutionBase(s, d, m, ac)
+SurfaceSolutionMatlab::SurfaceSolutionMatlab(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &mt)
+    : SurfaceSolutionBase(s, d, m, ac, mt)
 {
     // start MATLAB engine
     if ((engine = engOpen("")) == nullptr)

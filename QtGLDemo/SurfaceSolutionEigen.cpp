@@ -121,8 +121,8 @@ void SurfaceSolutionEigen::update()
     }
 }
 
-SurfaceSolutionEigen::SurfaceSolutionEigen(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac)
-    : SurfaceSolutionBase(s, d, m, ac)
+SurfaceSolutionEigen::SurfaceSolutionEigen(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &mt)
+    : SurfaceSolutionBase(s, d, m, ac, mt)
 {
     BuildLaplacianMatrix();
 }

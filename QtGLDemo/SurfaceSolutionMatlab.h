@@ -7,7 +7,7 @@ class SurfaceSolutionMatlab :
     public SurfaceSolutionBase
 {
 public:
-    SurfaceSolutionMatlab(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
+    SurfaceSolutionMatlab(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &);
     ~SurfaceSolutionMatlab();
 
     virtual void update() override;

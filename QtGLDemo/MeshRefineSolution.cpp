@@ -2,8 +2,8 @@
 #include "MeshRefineSolution.h"
 
 
-MeshRefineSolution::MeshRefineSolution(TriMesh &s, ConsoleMessageManager &m, TextConfigLoader &ac)
-    : mesh(s), msg(m), algorithm_config(ac)
+MeshRefineSolution::MeshRefineSolution(TriMesh &s, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &mt)
+    : mesh(s), msg(m), algorithm_config(ac), map_tension_inner(mt)
 {
 }
 
@@ -172,6 +172,8 @@ int MeshRefineSolution::_Split(float edge_split_tolerance, bool& changed)
 
         auto mid_pos = (mesh.point(vh[0]) + mesh.point(vh[2])) / 2.0f;
         auto mid_vh = mesh.add_vertex(mid_pos);
+        map_tension_inner[mid_vh] = 
+            0.5f * (map_tension_inner[vh[0]] + map_tension_inner[vh[2]]);
 
         mesh.delete_face(mesh.face_handle(eh), false);
         mesh.delete_face(mesh.opposite_face_handle(eh), false);

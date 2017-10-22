@@ -163,6 +163,12 @@ void RenderingWidget::ReadMeshInnerFromFile()
     }
 
     ReadMeshFromFile(filename, mesh_inner);
+
+    // Init Tension.
+    for (auto v_it : mesh_inner.vertices())
+    {
+        map_tension_inner[v_it] = 0.0f;
+    }
 }
 
 void RenderingWidget::ReadMeshOuterFromFile()
@@ -242,10 +248,6 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename, TriMesh &mesh)
         delete ss;
         ss = nullptr;
     }
-
-    _InsertScriptHistory(QString("read mesh from file, size=(V:%0, E:%1, F:%2)")
-        .arg(mesh.n_vertices()).arg(mesh.n_edges()).arg(mesh.n_faces()),
-        InfoType);
 }
 
 VertexHandle RenderingWidget::SelectVertexByScreenPositionInner(const QPoint &pos, float &error)
@@ -505,6 +507,12 @@ void RenderingWidget::GenerateSphereMeshInner()
     {
         delete ss;
         ss = nullptr;
+    }
+
+        // Init Tension.
+    for (auto v_it : mesh_inner.vertices())
+    {
+        map_tension_inner[v_it] = 0.0f;
     }
 }
 
@@ -1168,7 +1176,7 @@ void RenderingWidget::UpdateSurface(bool inner, bool outer, int iter) // default
             ss = new SurfaceSolutionMatlab(mesh_inner, dis_field, msg, algorithm_config);
         else */
         if (method == "Neo")
-            ss = new SurfaceSolutionNeo(mesh_inner, mesh_outer, dis_field, msg, algorithm_config);
+            ss = new SurfaceSolutionNeo(mesh_inner, mesh_outer, dis_field, msg, algorithm_config, map_tension_inner);
     }
 
     algorithm_config.reload();
@@ -1672,6 +1680,8 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
             if (error < 0.0005)
             {
                 vertex_range_inner.insert(v);
+                if (map_tension_inner.find(v) != map_tension_inner.end())
+                    msg.log(QString("Tension=%0").arg(map_tension_inner[v]), INFO_MSG);
             }
         }
         else

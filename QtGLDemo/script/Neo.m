@@ -9,7 +9,7 @@
 % end
 
 if update_Inner
-    F_Inner = area_press * Rep_Inner * Its_Inner * N_Inner;
+    F_Inner = Rep_Inner * Its_Inner * N_Inner;
 
     LHS = [w_L * Lap_Inner; (w_P + w_F) * speye(size_Inner)];
     RHS = [zeros(size_Inner, 3); w_P * V_Inner + w_F * (V_Inner + F_Inner)];
@@ -18,7 +18,7 @@ if update_Inner
 end
 
 if update_Outer
-    F_Outer = -1 * area_press * Rep_Outer * Its_Outer * N_Outer;
+    F_Outer = -1 * Rep_Outer * Its_Outer * N_Outer;
     % F_Outer = -1 * area_press * Rep_Outer * Area_Outer * Its_Outer * N_Outer;
 
     LHS = [w_L * Lap_Outer; (w_P + w_F) * speye(size_Outer)];

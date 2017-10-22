@@ -21,7 +21,7 @@ using SpMatTriple = std::tuple<int, int, float>;
 class SurfaceSolutionBase
 {
 public:
-    SurfaceSolutionBase(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
+    SurfaceSolutionBase(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &);
     virtual void update() = 0;
     int tagged(VertexHandle vh);
     ~SurfaceSolutionBase();
@@ -45,6 +45,9 @@ protected:
     std::vector<int> num_neighbors;
     std::vector<std::vector<int>> neighbors;
     bool surface_changed;
+
+    // Tension 
+    std::map<VertexHandle, float> &map_tension_inner;
 
     // Tag Vertex, DEBUG USE
     std::map<VertexHandle, int> verts_tag;

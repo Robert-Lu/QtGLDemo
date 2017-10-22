@@ -8,7 +8,9 @@ class SurfaceSolutionNeo :
     public SurfaceSolutionMatlab
 {
 public:
-    SurfaceSolutionNeo(TriMesh &si, TriMesh &so, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
+    SurfaceSolutionNeo(TriMesh &si, TriMesh &so, 
+        OcTreeField *d, ConsoleMessageManager &m, 
+        TextConfigLoader &ac, std::map<VertexHandle, float> &);
     ~SurfaceSolutionNeo();
 
     void update() override;

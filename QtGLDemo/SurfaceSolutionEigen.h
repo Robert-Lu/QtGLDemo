@@ -12,7 +12,7 @@ class SurfaceSolutionEigen :
     public SurfaceSolutionBase
 {
 public:
-    SurfaceSolutionEigen(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac);
+    SurfaceSolutionEigen(TriMesh &s, OcTreeField *d, ConsoleMessageManager &m, TextConfigLoader &ac, std::map<VertexHandle, float> &);
     virtual void update() override;
     ~SurfaceSolutionEigen();
 
