@@ -212,6 +212,7 @@ void SurfaceSolutionNeo::update()
 
 void SurfaceSolutionNeo::update_inner()
 {
+    // tag Inner, activate inner surface update in Matlab code.
     InputVariableToEngine(engine, "update_Inner", 1.0f);
     InputVariableToEngine(engine, "update_Outer", 0.0f);
 
@@ -240,6 +241,7 @@ void SurfaceSolutionNeo::update_inner()
     BuildLaplacianMatrixBuilderInner();
     InputSparseMatrixToEngine(engine, "Lap_Inner", builderLaplacianInner);
 
+    TIC
     // Extract Position.
     std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
     SpMatBuilder builderDistance;
@@ -267,36 +269,6 @@ void SurfaceSolutionNeo::update_inner()
     InputSparseMatrixToEngine(engine, "Its_Inner", builderIntensity);
     InputDenseMatrixToEngine(engine, "N_Inner", data_normal);
 
-    // BuildLaplacianMatrixBuilderOuter();
-    // InputSparseMatrixToEngine(engine, "Lap_Outer", builderLaplacianOuter);
-    //
-    // // Extract Position.
-    // std::vector<std::vector<float>> data_position_outer(num_verts_outer, std::vector<float>(3, 0.0f));
-    // SpMatBuilder builderDistance_outer;
-    // SpMatBuilder builderIntensity_outer;
-    // std::vector<std::vector<float>> data_normal_outer(num_verts_outer, std::vector<float>(3, 0.0f));
-    // std::vector<std::vector<float>> data_grad_potential_outer(num_verts_outer, std::vector<float>(3, 0.0f));
-    // for (int r = 0; r < num_verts_outer; r++)
-    // {
-    //     auto pos = mesh_outer.point(verts_outer[r]);
-    //     auto nor = mesh_outer.normal(verts_outer[r]);
-    //     auto dir = dis_field->get_dir(pos);
-    //     auto dis = dis_field->get_value(pos);
-    //     builderDistance_outer.push_back(SpMatTriple{ r, r, dis });
-    //     builderIntensity_outer.push_back(SpMatTriple{ r, r,
-    //         _pinch(0.0f, dis - epsilon, 2 * epsilon) });
-    //     for (int c = 0; c < 3; c++)
-    //     {
-    //         data_position_outer[r][c] = pos[c];
-    //         data_normal_outer[r][c] = nor[c];
-    //         data_grad_potential_outer[r][c] = dir[c];
-    //     }
-    // }
-    // InputDenseMatrixToEngine(engine, "V_Outer", data_position_outer);
-    // InputSparseMatrixToEngine(engine, "Dis_Outer", builderDistance_outer);
-    // InputSparseMatrixToEngine(engine, "Its_Outer", builderIntensity_outer);
-    // InputDenseMatrixToEngine(engine, "N_Outer", data_normal_outer);
-
     // Build Mass Matrix and Area Matrix.
     SpMatBuilder builderMass, builderArea;
     for (auto f : mesh_inner.faces())
@@ -315,24 +287,10 @@ void SurfaceSolutionNeo::update_inner()
     }
     InputSparseMatrixToEngine(engine, "Mass_Inner", builderMass);
     InputSparseMatrixToEngine(engine, "Area_Inner", builderArea);
-    // for (auto f : mesh_outer.faces())
-    // {
-    //     auto area = _area(mesh_outer, f);
-    //     auto fv_iter = mesh_outer.fv_begin(f);
-    //     for (; fv_iter != mesh_outer.fv_end(f); fv_iter++)
-    //     {
-    //         auto index = vert_index_outer[*fv_iter];
-    //         // apply 1/3 the mass of face to each 3 face vertices.
-    //         builderMass.push_back(SpMatTriple{ index, index,
-    //             area_mass * area / 3.0f });
-    //         builderArea.push_back(SpMatTriple{ index, index,
-    //             area / 3.0f });
-    //     }
-    // }
-    // InputSparseMatrixToEngine(engine, "Mass_Outer", builderMass);
-    // InputSparseMatrixToEngine(engine, "Area_Outer", builderArea);
+    TOC("Extract Position")
 
     // Extract Repulsion from kdtree
+    TIC
     SpMatBuilder builderRepulaionInner;
     bool enable_repulsion = algorithm_config.get_bool("EnableRepulsion", true);
     if (enable_repulsion)
@@ -359,6 +317,7 @@ void SurfaceSolutionNeo::update_inner()
         }
     }
     InputSparseMatrixToEngine(engine, "Rep_Inner", builderRepulaionInner);
+    TOC("Build Rep")
 
     // Main.
     auto script_filename = algorithm_config.get_string("MatlabScriptFileNeo");
@@ -395,6 +354,19 @@ void SurfaceSolutionNeo::update_inner()
     changed_inner = refine_inner.refine("Inner_");
     // changed_outer = refine_outer.refine();
     TOC("refine")
+}
+
+void SurfaceSolutionNeo::update_inner_with_range(std::vector<VertexHandle> range)
+{
+    // tag Inner, activate inner surface update in Matlab code.
+    InputVariableToEngine(engine, "update_Inner", 1.0f);
+    InputVariableToEngine(engine, "update_Outer", 0.0f);
+
+    // Extract Constants.
+    float w_L = algorithm_config.get_float("w_L", 1.0f);
+    float w_P = algorithm_config.get_float("w_P", 1.0f);
+    float w_F = algorithm_config.get_float("w_F", 1.0f);
+    float epsilon = algorithm_config.get_float("epsilon");
 }
 
 void SurfaceSolutionNeo::update_outer()

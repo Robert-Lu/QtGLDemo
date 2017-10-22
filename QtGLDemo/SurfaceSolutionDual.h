@@ -13,6 +13,8 @@ public:
 
     void update() override;
     virtual void update_inner();
+    virtual void update_inner_with_range(
+        std::vector<VertexHandle> range);
     virtual void update_outer();
 
 protected:

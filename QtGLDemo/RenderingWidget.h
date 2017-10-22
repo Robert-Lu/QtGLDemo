@@ -129,6 +129,10 @@ private:
     std::vector<Vertex2D> vertex_data_base;
     std::vector<Vertex2D> vertex_data_slice;
 
+    // Range
+    std::set<VertexHandle> vertex_range;
+    std::set<FaceHandle> face_range;
+
     // Need Update Buffer
     bool buffer_need_update_mesh;
     bool buffer_need_update_pc;
@@ -163,4 +167,6 @@ private:
     void _RunScriptLine(std::vector<QString> &script, int recursion_limit = 10);
     void RunScript();
     void ReadMeshFromFile(const QString &, TriMesh &);
+    VertexHandle SelectVertexByScreenPosition(const QPoint&, float &);
+    void TopologyMerge();
 };

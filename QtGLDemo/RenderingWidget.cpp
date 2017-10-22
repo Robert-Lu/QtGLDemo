@@ -8,6 +8,7 @@
 
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <algorithm>
 
 #define TIC QTiming::Tic();
 #define TOC(s) {\
@@ -245,6 +246,111 @@ void RenderingWidget::ReadMeshFromFile(const QString &filename, TriMesh &mesh)
     _InsertScriptHistory(QString("read mesh from file, size=(V:%0, E:%1, F:%2)")
         .arg(mesh.n_vertices()).arg(mesh.n_edges()).arg(mesh.n_faces()),
         InfoType);
+}
+
+VertexHandle RenderingWidget::SelectVertexByScreenPosition(const QPoint &pos, float &error)
+{
+    float scx = pos.x(), 
+          scy = pos.y();
+    scx -= this->width() * 0.5f;
+    scy -= this->height() * 0.5f;
+    scx /= this->width() * 0.5f;
+    scy /= this->height() * -0.5f;
+
+    QMatrix4x4 mat_model;
+    QMatrix4x4 mat_view = camera.view_mat();
+    QMatrix4x4 mat_projection;
+    mat_projection.perspective(45.0f,
+        float(this->width()) / float(this->height()),
+        0.1f, 100.f);
+    QMatrix4x4 MVP = mat_projection * mat_view * mat_model;
+
+    float min_disp = INFINITY;
+    float min_error = INFINITY;
+    VertexHandle vh;
+    for (auto v_it : mesh_inner.vertices())
+    {
+        auto p{ mesh_inner.point(v_it) };
+        QVector4D pos{ p[0], p[1], p[2], 1.0f };
+        auto cs_position = mat_view * mat_model * pos;
+        auto scpos = mat_projection * cs_position;
+        scpos /= scpos.w();
+        float distToCamera = - cs_position.z();
+        float this_error = powf((scpos.x() - scx), 2.0f) + powf((scpos.y() - scy), 2.0f);
+        if (this_error < error && distToCamera < min_disp)
+        {
+            vh = v_it;
+            min_disp = distToCamera;
+            min_error = this_error;
+        }
+    }
+    error = min_error;
+    return vh;
+}
+
+void RenderingWidget::TopologyMerge()
+{
+    if (face_range.size() != 2)
+    {
+        msg.log("not 2 face");
+        return;
+    }
+
+    std::vector<FaceHandle> faces;
+    std::copy(face_range.begin(), face_range.end(), std::back_inserter(faces));
+    auto fa = faces[0];
+    auto fb = faces[1];
+    OpenMesh::Vec3f pa[3];
+    VertexHandle vha[3];
+    OpenMesh::Vec3f pb[3];
+    VertexHandle vhb[3];
+
+    auto fv_ita = mesh_inner.fv_iter(fa);
+    for (int i = 0; fv_ita; ++fv_ita)
+    {
+        pa[i] = mesh_inner.point(*fv_ita);
+        vha[i] = *fv_ita;
+        i++;
+    }
+
+    auto fv_itb = mesh_inner.fv_iter(fb);
+    for (int i = 0; fv_itb; ++fv_itb)
+    {
+        pb[i] = mesh_inner.point(*fv_itb);
+        vhb[i] = *fv_itb;
+        i++;
+    }
+    
+    // find nearest point of pa[0]
+    float min_dis = INFINITY;
+    int offset = 0;
+    for (int i = 0; i < 3; i++)
+    {
+        float dis = (pb[i] - pa[0]).norm();
+        if (dis < min_dis)
+        {
+            min_dis = dis;
+            offset = i;
+        }
+    }
+
+    int a, b, c;
+    a = offset; // 0 <-> a
+    b = (offset + 1) % 3; // 1 <-> b
+    c = (offset + 2) % 3; // 2 <-> c
+
+    // Delete all the faces and keep all the vertices as isolated.
+    mesh_inner.request_face_status();
+    for (auto fh : faces)
+        mesh_inner.delete_face(fh, false);
+    mesh_inner.garbage_collection();
+
+    mesh_inner.add_face(vha[0], vha[1], vhb[a]);
+    mesh_inner.add_face(vha[1], vha[2], vhb[c]);
+    mesh_inner.add_face(vha[2], vha[0], vhb[b]);
+    mesh_inner.add_face(vhb[a], vha[1], vhb[c]);
+    mesh_inner.add_face(vhb[c], vha[2], vhb[b]);
+    mesh_inner.add_face(vhb[b], vha[0], vhb[a]);
 }
 
 //void RenderingWidget::GenerateSphereMesh()
@@ -689,19 +795,19 @@ void RenderingWidget::BuildDistanceFieldFromPointCloud()
     }
     dis_field = new OcTreeField(min_pos, max_pos, kdtree, &pts, max_div);
 
-    auto stat = dis_field->stat();
-    msg.log("Build Distance Field on OcTree.", INFO_MSG);
-    msg.indent_more();
-    msg.log(tr("Minimum size of grid: %0.").arg(stat.min_size), TRIVIAL_MSG);
-    msg.log(tr("Total number of OcTree nodes: %0.").arg(stat.grid_cnt), TRIVIAL_MSG);
-    msg.indent_more();
-    int d = 0;
-    for (auto num : stat.depth_cnt)
-    {
-        msg.log(tr("Number of nodes with depth %0: %1.").arg(d++).arg(num), TRIVIAL_MSG);
-    }
-    msg.reset_indent();
-    TOC("Build Distance Field from Point Cloud");
+    //auto stat = dis_field->stat();
+    //msg.log("Build Distance Field on OcTree.", INFO_MSG);
+    //msg.indent_more();
+    //msg.log(tr("Minimum size of grid: %0.").arg(stat.min_size), TRIVIAL_MSG);
+    //msg.log(tr("Total number of OcTree nodes: %0.").arg(stat.grid_cnt), TRIVIAL_MSG);
+    //msg.indent_more();
+    //int d = 0;
+    //for (auto num : stat.depth_cnt)
+    //{
+    //    msg.log(tr("Number of nodes with depth %0: %1.").arg(d++).arg(num), TRIVIAL_MSG);
+    //}
+    //msg.reset_indent();
+    //TOC("Build Distance Field from Point Cloud");
 
     UpdateSlicingPlane();
     buffer_need_update_slice = true;
@@ -1365,6 +1471,7 @@ void RenderingWidget::mousePressEvent(QMouseEvent* e)
     setCursor(Qt::ClosedHandCursor);
     current_position_ = e->pos();
 
+    algorithm_config.reload();
     //switch (e->button())
     //{
     //case Qt::LeftButton:
@@ -1425,6 +1532,7 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
 {
     setCursor(Qt::ArrowCursor);
     current_position_ = e->pos();
+    bool has_ctrl = e->modifiers() & Qt::ControlModifier;
 
     if (tagSlicingChanged)
     {
@@ -1444,6 +1552,22 @@ void RenderingWidget::mouseReleaseEvent(QMouseEvent* e)
 
         tagSlicingChanged = false;
     }
+    else if (e->button() == Qt::RightButton)
+    {
+        if (!has_ctrl)
+        {
+            vertex_range.clear();
+            face_range.clear();
+        }
+        float error = 0.0005;
+        VertexHandle v = SelectVertexByScreenPosition(e->pos(), error);
+        if (error < 0.0005)
+        {
+            vertex_range.insert(v);
+        }
+    }
+    GenerateBufferFromMesh(vertex_data_mesh);
+    buffer_need_update_mesh = true;
 }
 
 void RenderingWidget::wheelEvent(QWheelEvent* e)
@@ -1581,6 +1705,9 @@ void RenderingWidget::keyPressEvent(QKeyEvent* e)
         else
             this->GenerateSphereMeshInner();
         break;
+    case Qt::Key_M:
+        TopologyMerge();
+        break;
     case Qt::Key_U:
         if (has_shift && has_ctrl)
             this->UpdateSurface(true, true, 1);
@@ -1700,6 +1827,7 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
         auto fv_it = mesh_inner.fv_iter(f_it);
         auto face_nor = mesh_inner.calc_face_normal(f_it);
 
+        int face_cnt = 0;
         for (; fv_it; ++fv_it)
         {
             auto vh = *fv_it;
@@ -1709,8 +1837,17 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
             if (config_bundle.render_config.face_normal)
                 nor = face_nor;
 
-            D.push_back({ pos, color, nor });
+            if (vertex_range.find(vh) != vertex_range.end())
+            {
+                OpenMesh::Vec3f red = { 1.0f, 0.0f, 0.0f };
+                D.push_back({ pos, red, nor });
+                face_cnt += 1;
+            }
+            else
+                D.push_back({ pos, color, nor });
         }
+        if (face_cnt == 3)
+            face_range.insert(f_it);
     }
 
     vertex_data_mesh_inner_size = D.size();

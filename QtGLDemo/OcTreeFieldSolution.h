@@ -7,6 +7,7 @@
 #define SPVEC3(v) (v)[0], (v)[1], (v)[2]
 typedef OpenMesh::TriMesh_ArrayKernelT<>  TriMesh;
 
+
 struct OcNode
 {
     // data
@@ -33,7 +34,7 @@ public:
     OcTreeField(QDataStream &in);
     ~OcTreeField();
     OcNode find(OpenMesh::Vec3f);
-    float get_value(OpenMesh::Vec3f);
+    virtual float get_value(OpenMesh::Vec3f);
     OpenMesh::Vec3f get_dir(OpenMesh::Vec3f);
     bool save_to_file(QDataStream &out);
 
@@ -52,10 +53,10 @@ public:
     int max_div;
 
 private:
-    void _expand(OcNode *root, int limit);
+    virtual void _expand(OcNode *root, int limit);
     OcNode _find(OcNode *root, OpenMesh::Vec3f pos);
     OcNode *_rebuild(QDataStream& in);
-    void _save(QDataStream& out, OcNode *root);
+    virtual void _save(QDataStream& out, OcNode *root);
 
 };
 
@@ -349,3 +350,24 @@ inline OcNode OcTreeField::_find(OcNode* root, OpenMesh::Vec3f pos)
 
     return _find(root->children[index], pos);
 }
+
+
+class KdTreeField : public OcTreeField
+{
+public:
+    KdTreeField(OpenMesh::Vec3f min_pos, OpenMesh::Vec3f max_pos,
+        kdt::kdTree* kdt, std::vector<kdt::kdPoint> *_pts,
+        int _max_div = 8) : OcTreeField(min_pos, max_pos, kdt, _pts, max_div) {}
+    float get_value(OpenMesh::Vec3f point) override
+    {
+        kdt::kdPoint p{ SPVEC3(point) };
+        auto idx = kdtree->nnSearch(p);
+        auto pos = (*pts)[idx];
+        auto dis = NORM3(pos, p);
+        return dis;
+    }
+
+private:
+    void _expand(OcNode *root, int limit) override {}
+    void _save(QDataStream& out, OcNode *root) override {}
+};
