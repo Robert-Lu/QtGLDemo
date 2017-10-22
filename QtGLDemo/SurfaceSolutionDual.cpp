@@ -246,6 +246,7 @@ void SurfaceSolutionNeo::update_inner()
     std::vector<std::vector<float>> data_position(num_verts_inner, std::vector<float>(3, 0.0f));
     SpMatBuilder builderDistance;
     SpMatBuilder builderIntensity;
+    std::vector<float> intensity;
     std::vector<std::vector<float>> data_normal(num_verts_inner, std::vector<float>(3, 0.0f));
     std::vector<std::vector<float>> data_grad_potential(num_verts_inner, std::vector<float>(3, 0.0f));
     for (int r = 0; r < num_verts_inner; r++)
@@ -257,6 +258,7 @@ void SurfaceSolutionNeo::update_inner()
         builderDistance.push_back(SpMatTriple{ r, r, dis });
         builderIntensity.push_back(SpMatTriple{ r, r,
             _pinch(0.0f, dis - epsilon, 2 * epsilon) });
+        intensity.push_back(_pinch(0.0f, dis - epsilon, 2 * epsilon));
         for (int c = 0; c < 3; c++)
         {
             data_position[r][c] = pos[c];
@@ -343,6 +345,12 @@ void SurfaceSolutionNeo::update_inner()
     for (int i = 0; i < mesh_inner.n_vertices(); i++)
     {
         auto v_ = Vec3f{ data[i][0], data[i][1], data[i][2] };
+        auto v = mesh_inner.point(verts_inner[i]);
+        auto diff = (v - v_).norm();
+        auto its = intensity[i] * w_F / (w_P + w_F);
+        //std::cout << i << "\t" << its - diff << std::endl;
+        if (its > diff)
+            map_tension_inner[verts_inner[i]] += its - diff;
 
         mesh_inner.point(verts_inner[i]) = Vec3f{ data[i][0], data[i][1], data[i][2] };
     }

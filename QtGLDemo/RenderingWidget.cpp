@@ -1920,6 +1920,12 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
 {
     OpenMesh::Vec3f color = mesh_color;
 
+    float ave_ten = 0.0f;
+    for (auto p : map_tension_inner)
+    {
+        ave_ten += p.second / map_tension_inner.size();
+    }
+
     D.clear();
     for (auto f_it : mesh_inner.faces())
     {
@@ -1981,7 +1987,14 @@ void RenderingWidget::GenerateBufferFromMesh(std::vector<Vertex3D>& D)
                 face_cnt += 1;
             }
             else
-                D.push_back({ pos, color, nor });
+            {
+                auto c = color;
+                if (ave_ten > 0)
+                    c[2] = map_tension_inner[vh] / ave_ten;
+                else
+                    c[2] = 0.5f;
+                D.push_back({ pos, c, nor });
+            }
         }
         if (face_cnt == 3)
             face_range_inner.insert(f_it);
